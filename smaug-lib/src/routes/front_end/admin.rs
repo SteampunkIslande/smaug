@@ -29,7 +29,7 @@ pub async fn password_edit_get(
     let edited_user = User::find_by_id(user_id, pool).await?;
     Ok(Template::render(
         "admin/passedit",
-        context! {auth_user=> auth.user, edited_user=>edited_user, user=>auth.user},
+        context! { edited_user=>edited_user, user=>auth.user},
     ))
 }
 

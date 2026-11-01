@@ -310,7 +310,6 @@ mod tests {
             target_url => "/",
             user => context! { username => "u", id => 1 },
             edited_user => context! { username => "u", id => 1 },
-            auth_user => context! { is_admin => false },
             user_groups => Vec::<minijinja::Value>::new(),
             is_admin => false,
             pipelines_struct => context! {},
