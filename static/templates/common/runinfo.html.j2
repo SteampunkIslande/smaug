@@ -32,9 +32,9 @@
       <h3>Tentatives</h3>
       <div class="attempt-list">
         {% if run.status == "Idle" %}
-        <div class="run-attempt idle">
-          <a href="/smaug/show/run/{{ run.run_id }}"><strong>Tentative actuelle</strong><span>À valider</span></a>
-        </div>
+<div class="run-attempt idle">
+  <a href="/smaug/show/run/{{ run.run_id }}">{% if attempt.status == "Idle" %}<strong>{% endif %}Tentative actuelle{% if attempt.status == "Idle" %}</strong>{% endif %}<span>À valider</span></a>
+</div>
         {% endif %}
         {% include "common/attemptlist.html.j2" %}
       </div>

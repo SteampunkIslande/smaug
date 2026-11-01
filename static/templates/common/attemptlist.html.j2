@@ -18,7 +18,7 @@
 {% set status_class = status_classes[status_key] | default("failure") %}
 <div class="run-attempt {{ status_class }}">
   <a href="/smaug/show/run/{{ run.run_id }}?attempt_number={{ att.attempt_number }}">
-    <strong>Tentative {{ att.attempt_number }}</strong>
+    {% if att.attempt_number == attempt.attempt_number %}<strong>{% endif %}Tentative {{ att.attempt_number }}{% if att.attempt_number == attempt.attempt_number %}</strong>{% endif %}
     <span>{{ status_label }}{% if att.commit_hash %} <small>({{ att.commit_hash[:7] }})</small>{% endif %}</span>
   </a>
 </div>
