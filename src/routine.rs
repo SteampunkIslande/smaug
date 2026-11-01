@@ -355,6 +355,12 @@ async fn run_script(
     tokio::fs::create_dir_all(attempt.outdir())
         .await
         .context("Impossible de créer le dossier outdir")?;
+    tokio::fs::create_dir_all(attempt.exports_dir())
+        .await
+        .context("Impossible de créer le dossier d'exportations")?;
+    tokio::fs::create_dir_all(attempt.logs_dir())
+        .await
+        .context("Impossible de créer le dossier de logs")?;
     tokio::fs::write(&script_path, &rendered)
         .await
         .context("Impossible d'écrire le script rendu")?;

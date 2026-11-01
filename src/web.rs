@@ -72,7 +72,7 @@ async fn rocket(
         .register("/smaug", catchers![unauthorized])
         .mount("/smaug/uploads", routes![routes::backend::serve_upload])
         .mount("/smaug/logs", routes![routes::backend::serve_run_log])
-        .mount("/smaug/data", routes![routes::backend::serve_export_file])
+        .mount("/smaug/files", routes![routes::backend::serve_run_file])
         .mount(
             "/smaug",
             routes![

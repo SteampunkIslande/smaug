@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::ops::Not;
-use std::path::PathBuf;
 
 use anyhow::Context;
 use rocket::State;
@@ -9,7 +8,6 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 use time::UtcOffset;
 
-use crate::config::get_smaug_config;
 use crate::routes::frontend::FrontendError;
 use crate::templates::{Template, context};
 
@@ -36,10 +34,10 @@ pub struct ExportSection {
 ///
 /// Each immediate subdirectory becomes a section; files stored directly in
 /// `exports-<attempt_number>` are grouped under a generic "Fichiers" section.
-fn list_export_files(run_id: i64, attempt_number: u32) -> Vec<ExportSection> {
-    let export_dir = PathBuf::from(&get_smaug_config().analysis_dir)
-        .join(format!("run-{:0>8}", run_id))
-        .join(format!("exports-{:0>8}", attempt_number));
+/// Bulk files such as logs live in `logs-<attempt_number>` instead: they are
+/// served by the files API but not listed here, so they cannot bloat the page.
+fn list_export_files(attempt: &Attempt) -> Vec<ExportSection> {
+    let export_dir = attempt.exports_dir();
 
     let Ok(entries) = std::fs::read_dir(&export_dir) else {
         return Vec::new();
@@ -68,9 +66,9 @@ fn list_export_files(run_id: i64, attempt_number: u32) -> Vec<ExportSection> {
                     let file_name = entry.file_name().to_string_lossy().to_string();
                     ExportFile {
                         url: format!(
-                            "/smaug/data/{}/{}/{}/{}",
-                            run_id,
-                            attempt_number,
+                            "/smaug/files/{}/{}/exports/{}/{}",
+                            attempt.run_id,
+                            attempt.attempt_number,
                             urlencode(&name),
                             urlencode(&file_name)
                         ),
@@ -85,9 +83,9 @@ fn list_export_files(run_id: i64, attempt_number: u32) -> Vec<ExportSection> {
         } else if file_type.is_file() {
             root_files.push(ExportFile {
                 url: format!(
-                    "/smaug/data/{}/{}/{}",
-                    run_id,
-                    attempt_number,
+                    "/smaug/files/{}/{}/exports/{}",
+                    attempt.run_id,
+                    attempt.attempt_number,
                     urlencode(&name)
                 ),
                 name,
@@ -224,7 +222,7 @@ pub async fn show_run_get(
             let attempt_date =
                 utils::format_french_date(&attempt.attempt_date.to_offset(local_offset), true);
 
-            let exports = list_export_files(run_id, attempt_number);
+            let exports = list_export_files(&attempt);
 
             // Display the template corresponding to the status of the ATTEMPT (not the Run)
             match attempt.status {
