@@ -1,8 +1,4 @@
-use anyhow::Result;
 use lazy_regex::Regex;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
 
 use crate::models::RunProgress;
 
@@ -20,14 +16,6 @@ impl LogProgressParser {
     pub fn new(run_id: i64, attempt_number: u32) -> Self {
         let mut state = RunProgress::new(run_id, attempt_number);
         state.log_available = true;
-        Self::from_progress(state)
-    }
-
-    /// Builds a parser around an already known progress snapshot.
-    ///
-    /// Used when the cache receives an explicit `RunProgress` instead of
-    /// replaying log lines.
-    pub fn from_progress(state: RunProgress) -> Self {
         Self {
             state,
             re_ansi: Regex::new(r"\x1b\[[0-9;?]*[ -/]*[@-~]").unwrap(),
@@ -101,6 +89,7 @@ impl LogProgressParser {
         self.state.last_output_line = Some(truncate_line(line, 500));
     }
 
+    #[cfg(test)]
     pub fn parse_text(run_id: i64, attempt_number: u32, content: &str) -> RunProgress {
         let mut parser = Self::new(run_id, attempt_number);
         // Snakemake emits progress updates as regular newline-terminated lines,
@@ -118,24 +107,6 @@ fn truncate_line(line: &str, max_chars: usize) -> String {
         truncated.push('…');
     }
     truncated
-}
-
-pub async fn find_errors<T>(log_path: T) -> Result<Vec<String>>
-where
-    T: AsRef<Path>,
-{
-    let file = File::open(&log_path)?;
-    let reader = BufReader::new(file).lines();
-
-    let re_error = Regex::new(r"^##\s+ERROR\s+(.+)$").unwrap();
-    let mut errors: Vec<String> = Vec::new();
-    for line in reader {
-        let line = line?;
-        if let Some(cap) = re_error.captures(&line) {
-            errors.push(cap[1].trim().to_string());
-        }
-    }
-    Ok(errors)
 }
 
 #[cfg(test)]

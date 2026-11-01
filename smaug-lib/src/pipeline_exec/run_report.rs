@@ -1,11 +1,9 @@
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use log::warn;
-use sqlx::Row;
 use sqlx::SqlitePool;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use tokio::sync::Mutex;
@@ -16,7 +14,6 @@ use crate::models::Attempt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RuleStatus {
     #[default]
-    Unknown,
     Running,
     Submitted,
     Completed,
@@ -26,40 +23,10 @@ pub enum RuleStatus {
 impl RuleStatus {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Unknown => "unknown",
             Self::Running => "running",
             Self::Submitted => "submitted",
             Self::Completed => "completed",
             Self::Failed => "failed",
-        }
-    }
-
-    fn from_db(value: &str) -> Self {
-        match value {
-            "running" => Self::Running,
-            "submitted" => Self::Submitted,
-            "completed" => Self::Completed,
-            "failed" => Self::Failed,
-            _ => Self::Unknown,
-        }
-    }
-
-    /// A later, more advanced state must not be replaced by a weaker one.
-    fn priority(self) -> u8 {
-        match self {
-            Self::Unknown => 0,
-            Self::Running => 1,
-            Self::Submitted => 2,
-            Self::Completed => 3,
-            Self::Failed => 4,
-        }
-    }
-
-    fn merge(self, other: Self) -> Self {
-        if other.priority() >= self.priority() {
-            other
-        } else {
-            self
         }
     }
 }
@@ -96,8 +63,15 @@ struct JobBlock {
     jobid: Option<i64>,
     slurm_job_id: Option<String>,
     rule_name: Option<String>,
-    status: RuleStatus,
     field: Option<BlockField>,
+    kind: BlockKind,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum BlockKind {
+    #[default]
+    Start,
+    Error,
 }
 
 #[derive(Clone, Copy)]
@@ -183,57 +157,72 @@ impl RunReport {
         }
 
         if let Some(submission) = parse_slurm_submission(trimmed) {
+            // The submission line closes the start block and adds the Slurm ID
+            // and log to it, so the whole block can be inserted at once.
             let mut block = match state.block.take() {
-                Some(block)
-                    if block.jobid.is_none()
-                        || block.jobid == Some(submission.snakemake_job_id) =>
-                {
-                    block
-                }
-                Some(other) => {
-                    self.persist(state, other).await?;
+                Some(block) if block.kind == BlockKind::Start => block,
+                Some(block) => {
+                    self.persist_block(state, block).await?;
                     JobBlock::default()
                 }
                 None => JobBlock::default(),
             };
 
+            if let Some(open_jobid) = block.jobid
+                && open_jobid != submission.snakemake_job_id
+            {
+                self.insert_block(state, block, RuleStatus::Running).await?;
+                block = JobBlock::default();
+            }
+
             block.jobid = Some(submission.snakemake_job_id);
             block.slurm_job_id = Some(submission.slurm_job_id);
-            block.status = block.status.merge(RuleStatus::Submitted);
             if let Some(path) = submission.log_path {
                 block.log_paths.push(path);
             }
-            self.persist(state, block).await?;
+            self.insert_block(state, block, RuleStatus::Submitted)
+                .await?;
             return Ok(());
         }
 
         if let Some(finished) = parse_finished_job(trimmed) {
-            let mut block = match state.block.take() {
-                Some(block) if block.jobid.is_none() || block.jobid == Some(finished.jobid) => {
-                    block
+            match state.block.take() {
+                Some(mut block)
+                    if block.kind == BlockKind::Start
+                        && (block.jobid.is_none() || block.jobid == Some(finished.jobid)) =>
+                {
+                    // A local job has no submission line: its start block is
+                    // still in memory, so it can be inserted directly as done.
+                    block.jobid = Some(finished.jobid);
+                    if let Some(rule_name) = finished.rule_name {
+                        block.rule_name = Some(rule_name);
+                    }
+                    self.insert_block(state, block, RuleStatus::Completed)
+                        .await?;
                 }
-                Some(other) => {
-                    self.persist(state, other).await?;
-                    JobBlock::default()
+                Some(block) => {
+                    self.persist_block(state, block).await?;
+                    self.finish_job(state, finished).await?;
                 }
-                None => JobBlock::default(),
-            };
-
-            block.jobid = Some(finished.jobid);
-            block.status = block.status.merge(RuleStatus::Completed);
-            if let Some(rule_name) = finished.rule_name {
-                block.rule_name = Some(rule_name);
+                None => self.finish_job(state, finished).await?,
             }
-            self.persist(state, block).await?;
             return Ok(());
         }
 
         if let Some(rule_name) = parse_error_rule_header(trimmed) {
-            // Keep the block open: the properties that follow (`jobid`, `log`,
-            // `input`, ...) complete or correct what was seen before the error.
-            let mut block = state.block.take().unwrap_or_default();
+            // The properties that follow (`jobid`, `log`, `input`, ...)
+            // complete the error block. If an unsubmitted start block is still
+            // open, keep its metadata and turn it into the failure record.
+            let mut block = match state.block.take() {
+                Some(block) if block.kind == BlockKind::Start => block,
+                Some(block) => {
+                    self.persist_block(state, block).await?;
+                    JobBlock::default()
+                }
+                None => JobBlock::default(),
+            };
+            block.kind = BlockKind::Error;
             block.rule_name = Some(rule_name);
-            block.status = block.status.merge(RuleStatus::Failed);
             state.block = Some(block);
             return Ok(());
         }
@@ -242,7 +231,6 @@ impl RunReport {
             self.flush_block(state).await?;
             state.block = Some(JobBlock {
                 rule_name: Some(rule_name),
-                status: RuleStatus::Running,
                 ..JobBlock::default()
             });
             return Ok(());
@@ -292,17 +280,36 @@ impl RunReport {
 
     async fn flush_block(&self, state: &mut ReportState) -> Result<()> {
         if let Some(block) = state.block.take() {
-            self.persist(state, block).await?;
+            self.persist_block(state, block).await?;
         }
         Ok(())
     }
 
-    async fn persist(&self, state: &ReportState, block: JobBlock) -> Result<()> {
+    async fn persist_block(&self, state: &ReportState, block: JobBlock) -> Result<()> {
+        match block.kind {
+            BlockKind::Start => {
+                let status = if block.slurm_job_id.is_some() {
+                    RuleStatus::Submitted
+                } else {
+                    RuleStatus::Running
+                };
+                self.insert_block(state, block, status).await
+            }
+            BlockKind::Error => self.fail_block(state, block).await,
+        }
+    }
+
+    async fn insert_block(
+        &self,
+        state: &ReportState,
+        block: JobBlock,
+        status: RuleStatus,
+    ) -> Result<()> {
         let Some(snakemake_job_id) = block.jobid else {
             return Ok(());
         };
 
-        let workflow = state.slurm_job_name.clone().unwrap_or_default();
+        let workflow = state.slurm_job_name.as_deref().unwrap_or_default();
         let rule_name = block.rule_name.unwrap_or_default();
 
         let mut log_paths = block
@@ -327,105 +334,85 @@ impl RunReport {
             input_sizes.push(size);
         }
 
-        let new_log_paths = join_paths(&log_paths);
-        let new_input_paths = join_paths(&input_paths);
-        let new_input_sizes = input_sizes.join(",");
-
-        // TODO: Not necessary, should get around this: all the necessary information come as a block (all the lines get written to stderr in the same time...)
-        let existing = sqlx::query(
+        sqlx::query(
             r#"
-            SELECT id, slurm_job_id, rule_name, status, log_paths, wildcards,
-                   input_paths, input_sizes
-            FROM snakemake
-            WHERE slurm_job_name = ? AND snakemake_job_id = ?
-            ORDER BY id
-            LIMIT 1
+            INSERT OR IGNORE INTO snakemake
+                (slurm_job_name, slurm_job_id, snakemake_job_id, rule_name,
+                 status, log_paths, wildcards, input_paths, input_sizes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
-        .bind(&workflow)
+        .bind(workflow)
+        .bind(&block.slurm_job_id)
         .bind(snakemake_job_id)
-        .fetch_optional(&self.inner.pool)
+        .bind(&rule_name)
+        .bind(status.as_str())
+        .bind(join_paths(&log_paths))
+        .bind(block.wildcards.join(","))
+        .bind(join_paths(&input_paths))
+        .bind(input_sizes.join(","))
+        .execute(&self.inner.pool)
         .await
-        .context("Impossible de chercher le job dans le rapport d'exécution")?;
+        .context("Impossible d'insérer dans le rapport d'exécution")?;
 
-        if let Some(row) = existing {
-            let row_id: i64 = row.try_get("id")?;
-            let old_status = RuleStatus::from_db(&row.try_get::<String, _>("status")?);
-            let status = old_status.merge(block.status);
+        Ok(())
+    }
 
-            let old_rule_name: String = row.try_get("rule_name")?;
-            let rule_name = if rule_name.is_empty() {
-                old_rule_name
-            } else {
-                rule_name
+    async fn finish_job(&self, state: &ReportState, finished: FinishedJob) -> Result<()> {
+        let workflow = state.slurm_job_name.as_deref().unwrap_or_default();
+        let updated = sqlx::query(
+            r#"
+            UPDATE snakemake
+            SET status = ?
+            WHERE slurm_job_name = ? AND snakemake_job_id = ?
+            "#,
+        )
+        .bind(RuleStatus::Completed.as_str())
+        .bind(workflow)
+        .bind(finished.jobid)
+        .execute(&self.inner.pool)
+        .await
+        .context("Impossible de mettre à jour le rapport d'exécution")?;
+
+        if updated.rows_affected() == 0 {
+            // The start block was never seen: keep a minimal record instead of
+            // silently dropping the job.
+            let block = JobBlock {
+                jobid: Some(finished.jobid),
+                rule_name: finished.rule_name,
+                ..JobBlock::default()
             };
+            self.insert_block(state, block, RuleStatus::Completed)
+                .await?;
+        }
 
-            let slurm_job_id: Option<String> = block
-                .slurm_job_id
-                .or_else(|| row.try_get("slurm_job_id").ok().flatten());
+        Ok(())
+    }
 
-            let mut merged_logs = split_list(&row.try_get::<String, _>("log_paths")?);
-            merged_logs.extend(split_list(&new_log_paths));
-            merged_logs.sort();
-            merged_logs.dedup();
+    async fn fail_block(&self, state: &ReportState, block: JobBlock) -> Result<()> {
+        let Some(snakemake_job_id) = block.jobid else {
+            return Ok(());
+        };
 
-            let mut merged_wildcards = split_list(&row.try_get::<String, _>("wildcards")?);
-            merged_wildcards.extend(block.wildcards.iter().cloned());
-            merged_wildcards.dedup();
+        let workflow = state.slurm_job_name.as_deref().unwrap_or_default();
+        let updated = sqlx::query(
+            r#"
+            UPDATE snakemake
+            SET status = ?
+            WHERE slurm_job_name = ? AND snakemake_job_id = ?
+            "#,
+        )
+        .bind(RuleStatus::Failed.as_str())
+        .bind(workflow)
+        .bind(snakemake_job_id)
+        .execute(&self.inner.pool)
+        .await
+        .context("Impossible de mettre à jour le rapport d'exécution")?;
 
-            let old_input_paths: String = row.try_get("input_paths")?;
-            let old_input_sizes: String = row.try_get("input_sizes")?;
-            let (input_paths, input_sizes) = if new_input_paths.is_empty() {
-                (old_input_paths, old_input_sizes)
-            } else if new_input_paths == old_input_paths {
-                // A duplicated block (typically the error report) carries the
-                // same inputs: keep the sizes measured when they still existed.
-                (new_input_paths, old_input_sizes)
-            } else {
-                (new_input_paths, new_input_sizes)
-            };
-
-            sqlx::query(
-                r#"
-                UPDATE snakemake
-                SET slurm_job_id = ?, rule_name = ?, status = ?, log_paths = ?,
-                    wildcards = ?, input_paths = ?, input_sizes = ?
-                WHERE id = ?
-                "#,
-            )
-            .bind(&slurm_job_id)
-            .bind(&rule_name)
-            .bind(status.as_str())
-            .bind(merged_logs.join(","))
-            .bind(merged_wildcards.join(","))
-            .bind(&input_paths)
-            .bind(&input_sizes)
-            .bind(row_id)
-            .execute(&self.inner.pool)
-            .await
-            .context("Impossible de mettre à jour le rapport d'exécution")?;
-        } else {
-            let wildcards = block.wildcards.join(",");
-            sqlx::query(
-                r#"
-                INSERT INTO snakemake
-                    (slurm_job_name, slurm_job_id, snakemake_job_id, rule_name,
-                     status, log_paths, wildcards, input_paths, input_sizes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                "#,
-            )
-            .bind(&workflow)
-            .bind(&block.slurm_job_id)
-            .bind(snakemake_job_id)
-            .bind(&rule_name)
-            .bind(block.status.as_str())
-            .bind(&new_log_paths)
-            .bind(&wildcards)
-            .bind(&new_input_paths)
-            .bind(&new_input_sizes)
-            .execute(&self.inner.pool)
-            .await
-            .context("Impossible d'insérer dans le rapport d'exécution")?;
+        if updated.rows_affected() == 0 {
+            // The job failed before its start block reached the report (local
+            // execution or failure before submission): insert what we have.
+            self.insert_block(state, block, RuleStatus::Failed).await?;
         }
 
         Ok(())
@@ -449,52 +436,22 @@ async fn ensure_schema(pool: &SqlitePool) -> Result<()> {
         r#"
         CREATE TABLE IF NOT EXISTS snakemake (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            slurm_job_name TEXT,
+            slurm_job_name TEXT NOT NULL DEFAULT '',
             slurm_job_id TEXT,
             snakemake_job_id INTEGER NOT NULL,
             rule_name TEXT NOT NULL DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'unknown',
+            status TEXT NOT NULL DEFAULT 'running',
             log_paths TEXT NOT NULL DEFAULT '',
             wildcards TEXT NOT NULL DEFAULT '',
             input_paths TEXT NOT NULL DEFAULT '',
-            input_sizes TEXT NOT NULL DEFAULT ''
+            input_sizes TEXT NOT NULL DEFAULT '',
+            UNIQUE(slurm_job_name, snakemake_job_id)
         )
         "#,
     )
     .execute(pool)
     .await
     .context("Impossible de créer la table `snakemake` du rapport d'exécution")?;
-
-    // Reports created before the status column was introduced are migrated in
-    // place: they remain readable and new updates can enrich them.
-    let columns: HashSet<String> = sqlx::query("PRAGMA table_info(snakemake)")
-        .fetch_all(pool)
-        .await
-        .context("Impossible de lire le schéma du rapport d'exécution")?
-        .into_iter()
-        .filter_map(|row| row.try_get::<String, _>("name").ok())
-        .collect();
-
-    for (name, definition) in [
-        ("rule_name", "TEXT NOT NULL DEFAULT ''"),
-        ("status", "TEXT NOT NULL DEFAULT 'unknown'"),
-    ] {
-        if !columns.contains(name) {
-            sqlx::query(&format!(
-                "ALTER TABLE snakemake ADD COLUMN {name} {definition}"
-            ))
-            .execute(pool)
-            .await
-            .with_context(|| format!("Impossible d'ajouter la colonne {name} au rapport"))?;
-        }
-    }
-
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_snakemake_job ON snakemake(slurm_job_name, snakemake_job_id)",
-    )
-    .execute(pool)
-    .await
-    .context("Impossible de créer l'index du rapport d'exécution")?;
 
     Ok(())
 }
@@ -639,15 +596,6 @@ fn wildcard_values(raw: &str) -> Vec<String> {
         .collect()
 }
 
-fn split_list(value: &str) -> Vec<String> {
-    value
-        .split(',')
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .collect()
-}
-
 fn join_paths(paths: &[PathBuf]) -> String {
     paths
         .iter()
@@ -680,6 +628,7 @@ fn strip_ansi(line: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::Row;
 
     async fn test_report(dir: &Path) -> RunReport {
         let pool = open_pool(&dir.join("report.db"), true).await.unwrap();
@@ -889,43 +838,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn migration_of_old_reports() {
-        use std::collections::HashSet;
+    async fn error_without_a_start_block_is_inserted() {
         let dir = temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("old-report.db");
-        let pool = open_pool(&path, true).await.unwrap();
-        sqlx::query(
-            r#"
-            CREATE TABLE snakemake (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                slurm_job_name TEXT,
-                slurm_job_id TEXT,
-                snakemake_job_id INTEGER NOT NULL,
-                log_paths TEXT NOT NULL DEFAULT '',
-                wildcards TEXT NOT NULL DEFAULT '',
-                input_paths TEXT NOT NULL DEFAULT '',
-                input_sizes TEXT NOT NULL DEFAULT ''
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        let report = test_report(&dir).await;
 
-        ensure_schema(&pool).await.unwrap();
+        report.observe("Error in rule process:").await;
+        report.observe("    jobid: 42").await;
+        report.observe("    log: failed.log").await;
+        report.finish().await;
 
-        let columns: HashSet<String> = sqlx::query("PRAGMA table_info(snakemake)")
-            .fetch_all(&pool)
+        let rows = sqlx::query("SELECT snakemake_job_id, rule_name, status FROM snakemake")
+            .fetch_all(&report.inner.pool)
             .await
-            .unwrap()
-            .into_iter()
-            .filter_map(|row| row.try_get::<String, _>("name").ok())
-            .collect();
-        assert!(columns.contains("rule_name"));
-        assert!(columns.contains("status"));
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<i64, _>("snakemake_job_id"), 42);
+        assert_eq!(rows[0].get::<String, _>("rule_name"), "process");
+        assert_eq!(rows[0].get::<String, _>("status"), "failed");
 
-        drop(pool);
+        drop(report);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

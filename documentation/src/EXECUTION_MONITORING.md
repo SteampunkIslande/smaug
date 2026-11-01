@@ -145,23 +145,23 @@ La table `snakemake` contient désormais :
 | `input_paths` / `input_sizes` | entrées et tailles en octets                               |
 | `wildcards`                   | valeurs des wildcards                                      |
 
-Le rapport est mis à jour de façon incrémentale :
+Le rapport est mis à jour en une écriture par bloc :
 
-1. un bloc de règle ouvre un job `running` ;
-2. une ligne de soumission le passe à `submitted` et ajoute le log Slurm ;
-3. `Finished ...` le passe à `completed` ;
-4. `Error in rule ...` le passe à `failed` et conserve les propriétés du bloc
-   d’erreur.
+1. le bloc de début de règle reste en mémoire jusqu’à la ligne de soumission ; il
+   est alors inséré avec le statut `submitted` (une règle locale, qui n’a pas de
+   soumission, est insérée à la fin de son bloc avec le statut `running` ou
+   `completed`) ;
+2. `Finished ...` met à jour le statut à `completed` ;
+3. `Error in rule ...` met à jour le statut à `failed` ; si le job n’a jamais été
+   inséré, le bloc d’erreur est inséré directement avec le statut `failed`.
 
-Les mises à jour sont fusionnées avec la ligne existante : les logs sont unis,
-les champs vides ne remplacent jamais une valeur connue et un statut ne régresse
-pas. La clé logique est `(slurm_job_name, snakemake_job_id)`.
+La clé logique est `(slurm_job_name, snakemake_job_id)` et elle est déclarée
+`UNIQUE`. Aucune lecture préalable de la table n’est nécessaire : le bloc de
+début fait un `INSERT`, les blocs de fin font un `UPDATE` ciblé.
 
 Un marqueur `## STEP ...` clôt le bloc courant et remet `slurm_job_name` à zéro
 dans le rapport aussi. Les jobs de l’étape suivante ne peuvent donc pas hériter
 de l’UUID Slurm de l’étape précédente.
-
-Le schéma est migré automatiquement pour les rapports déjà présents.
 
 Le rapport n’est volontairement pas exposé dans l’interface : il est trop coûteux
 de lister et de servir tous les logs de toutes les règles à chaque consultation.
