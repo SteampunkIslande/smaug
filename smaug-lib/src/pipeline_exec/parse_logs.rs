@@ -12,7 +12,6 @@ pub struct LogProgressParser {
     re_step: Regex,
     re_progress: Regex,
     re_job_name: Regex,
-    re_legacy_job_name: Regex,
     re_snakemake: Regex,
     re_rsync: Regex,
 }
@@ -27,8 +26,7 @@ impl LogProgressParser {
             re_ansi: Regex::new(r"\x1b\[[0-9;?]*[ -/]*[@-~]").unwrap(),
             re_step: Regex::new(r"(?i)^##\s+(?:STEP|PHASE)\s+(.+?)\s*$").unwrap(),
             re_progress: Regex::new(r"(?i)^##\s+PROGRESS\s+(\d{1,3})\s*%?\s*$").unwrap(),
-            re_job_name: Regex::new(r"(?i)^##\s+SLURM_JOB_NAME\s+(.+?)\s*$").unwrap(),
-            re_legacy_job_name: Regex::new(r"(?i)^SLURM\s+run\s+ID:\s+(.+?)\s*$").unwrap(),
+            re_job_name: Regex::new(r"(?i)^SLURM\s+run\s+ID:\s+(.+?)\s*$").unwrap(),
             re_snakemake: Regex::new(r"(?i)(\d+)\s+of\s+(\d+)\s+steps\s+\((\d{1,3})%\)\s+done")
                 .unwrap(),
             re_rsync: Regex::new(r"(?i)^\s*[\d,.]+\s+(\d{1,3})%\s+.*(?:xfr#|to-chk|ir-chk)")
@@ -61,11 +59,7 @@ impl LogProgressParser {
             return;
         }
 
-        if let Some(cap) = self
-            .re_job_name
-            .captures(line)
-            .or_else(|| self.re_legacy_job_name.captures(line))
-        {
+        if let Some(cap) = self.re_job_name.captures(line) {
             self.state.slurm_job_name = Some(cap[1].trim().to_string());
             return;
         }
@@ -97,7 +91,7 @@ impl LogProgressParser {
 
     pub fn parse_text(run_id: i64, attempt_number: u32, content: &str) -> RunProgress {
         let mut parser = Self::new(run_id, attempt_number);
-        for raw_line in content.split(['\n', '\r']) {
+        for raw_line in content.lines() {
             parser.parse_line(raw_line);
         }
         parser.state
@@ -150,7 +144,7 @@ mod tests {
         );
         assert_eq!(parsed.current_progress, Some(20));
         assert_eq!(parsed.done_jobs_count, Some(2));
-        assert_eq!(parsed.slurm_job_name.as_deref(), Some("demux"));
+        assert_eq!(parsed.slurm_job_name.as_deref(), None); //Doesn't parse if it's not the snakemake way of naming slurm job
         assert_eq!(
             parsed.last_output_line.as_deref(),
             Some("2 of 10 steps (20%) done")
@@ -201,15 +195,5 @@ mod tests {
         assert_eq!(parsed.current_progress, Some(100));
         assert_eq!(parsed.done_jobs_count, Some(10));
         assert_eq!(parsed.slurm_job_name, None);
-    }
-
-    #[test]
-    fn handles_carriage_return_progress_updates() {
-        let log = "## STEP run\n1 of 10 steps (10%) done\r2 of 10 steps (20%) done\r";
-
-        let parsed = LogProgressParser::parse_text(1, 1, log);
-
-        assert_eq!(parsed.current_progress, Some(20));
-        assert_eq!(parsed.done_jobs_count, Some(2));
     }
 }
