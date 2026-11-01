@@ -20,6 +20,6 @@ pub async fn edit_groups_for_user(
         .context("Utilisateur introuvable")?;
     Ok(Template::render(
         "admin/groups_list",
-        context! {user_id, edited_user => user, user => auth.user},
+        context! {edited_user => user, user => auth.user},
     ))
 }
