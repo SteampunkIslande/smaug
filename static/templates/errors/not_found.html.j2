@@ -1,0 +1,15 @@
+{% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
+
+{% block title %}{{ title }} | SMAUG{% endblock %}
+
+{% block content %}
+<div class="state-page">
+  <section class="state-card">
+    {{ ui.icon("search") }}
+    <h1>{{ h2 }}</h1>
+    <p>{{ message }}</p>
+    <a class="btn" href="/smaug/home">{{ ui.icon("home") }}Retour à l’accueil</a>
+  </section>
+</div>
+{% endblock %}

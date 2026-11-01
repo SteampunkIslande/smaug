@@ -135,7 +135,8 @@ pub async fn edit_run_get(
                     context! {
                         title=> status_str,
                         h2=> format!("Impossible d'éditer un {}.", status_str.to_lowercase()),
-                        message=> "Seuls les runs à l'état 'A valider' peuvent être édités."
+                        message=> "Seuls les runs à l'état 'A valider' peuvent être édités.",
+                        user=> auth.user
                     },
                 ))
             }
@@ -146,7 +147,8 @@ pub async fn edit_run_get(
             context! {
                 title=> "Accès refusé",
                 h2=> "Accès refusé",
-                message=> "Vous n'avez pas les permissions nécessaires pour éditer ce run"
+                message=> "Vous n'avez pas les permissions nécessaires pour éditer ce run",
+                user=> auth.user
             },
         ))
     }

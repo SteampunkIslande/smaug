@@ -1,16 +1,5 @@
 use crate::templates::{Template, context};
-use rocket::FromForm;
 use rocket::get;
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Debug, FromForm)]
-pub struct RedirectForm {
-    pub message: String,
-    pub title: String,
-    pub target_url: String,
-    // Optional: allows overriding the delay in seconds
-    pub seconds: Option<u64>,
-}
 
 #[get("/redirect?<message>&<title>&<target_url>&<seconds>")]
 pub async fn redirect_get(

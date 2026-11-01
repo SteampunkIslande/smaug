@@ -291,7 +291,8 @@ pub async fn show_run_get(
             context! {
                 title=> "Accès refusé",
                 h2=> "Accès refusé",
-                message=> "Vous n'avez pas les permissions nécessaires pour voir ce run"
+                message=> "Vous n'avez pas les permissions nécessaires pour voir ce run",
+                user=> &auth.user
             },
         ))
     }

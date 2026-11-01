@@ -41,6 +41,18 @@ async fn unauthorized() -> Template {
     )
 }
 
+#[catch(404)]
+async fn not_found() -> Template {
+    Template::render(
+        "errors/not_found",
+        context! {
+            title=> "Page introuvable",
+            h2=> "Page introuvable",
+            message=> "La page demandée n’existe pas ou a été déplacée."
+        },
+    )
+}
+
 #[get("/documentation")]
 pub fn doc_redirect() -> Redirect {
     Redirect::permanent("/smaug/documentation/index.html")
@@ -69,7 +81,7 @@ async fn rocket(
     }
 
     let mut r = rocket::custom(figment)
-        .register("/smaug", catchers![unauthorized])
+        .register("/smaug", catchers![unauthorized, not_found])
         .mount("/smaug/uploads", routes![routes::backend::serve_upload])
         .mount("/smaug/logs", routes![routes::backend::serve_run_log])
         .mount("/smaug/files", routes![routes::backend::serve_run_file])
