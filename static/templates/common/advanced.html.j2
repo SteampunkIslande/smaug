@@ -4,14 +4,30 @@
     <div>{{ ui.icon("settings", "section-icon") }}<h2 id="advanced-title">Avancé</h2>
     </div>
   </div>
-  <div class="log-links">
-    <a class="log-link" href="/smaug/logs/{{ run.run_id }}/{{ attempt.attempt_number }}/stdout" target="_blank"
-      download="run-{{ run.run_id }}-tentative-{{ attempt.attempt_number }}.stdout">
-      {{ ui.icon("download") }}Logs stdout
-    </a>
-    <a class="log-link" href="/smaug/logs/{{ run.run_id }}/{{ attempt.attempt_number }}/stderr" target="_blank"
-      download="run-{{ run.run_id }}-tentative-{{ attempt.attempt_number }}.stderr">
-      {{ ui.icon("download") }}Logs stderr
-    </a>
+  <div class="advanced-tabs" role="tablist" aria-label="Informations avancées">
+    <button type="button" role="tab" id="advanced-tab-logs" aria-controls="advanced-panel-logs" aria-selected="true" data-advanced-tab="logs">Logs</button>
+    <button type="button" role="tab" id="advanced-tab-script" aria-controls="advanced-panel-script" aria-selected="false" data-advanced-tab="script">Script rendu</button>
+  </div>
+  <div id="advanced-panel-logs" role="tabpanel" aria-labelledby="advanced-tab-logs" class="advanced-panel">
+    <div class="log-links">
+      <a class="log-link" href="/smaug/logs/{{ run.run_id }}/{{ attempt.attempt_number }}/stdout" target="_blank"
+        download="run-{{ run.run_id }}-tentative-{{ attempt.attempt_number }}.stdout">
+        {{ ui.icon("download") }}Logs stdout
+      </a>
+      <a class="log-link" href="/smaug/logs/{{ run.run_id }}/{{ attempt.attempt_number }}/stderr" target="_blank"
+        download="run-{{ run.run_id }}-tentative-{{ attempt.attempt_number }}.stderr">
+        {{ ui.icon("download") }}Logs stderr
+      </a>
+    </div>
+  </div>
+  <div id="advanced-panel-script" role="tabpanel" aria-labelledby="advanced-tab-script" class="advanced-panel" hidden>
+    <div class="log-links">
+      <a class="log-link" href="/smaug/scripts/{{ run.run_id }}/{{ attempt.attempt_number }}" target="_blank"
+        download="run-{{ run.run_id }}-tentative-{{ attempt.attempt_number }}.sh">
+        {{ ui.icon("download") }}Télécharger le script
+      </a>
+    </div>
+    <pre id="run-script" class="stdout script-output is-empty"
+      data-script-url="/smaug/scripts/{{ run.run_id }}/{{ attempt.attempt_number }}">Chargement du script…</pre>
   </div>
 </section>

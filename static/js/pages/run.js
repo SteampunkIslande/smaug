@@ -181,3 +181,39 @@ if (progressBar) {
   pollJobInfo();
   intervalId = window.setInterval(pollJobInfo, POLL_INTERVAL);
 }
+
+const advancedTabs = document.querySelectorAll("[data-advanced-tab]");
+const scriptOutput = document.getElementById("run-script");
+let scriptLoaded = false;
+
+function selectAdvancedTab(name) {
+  for (const button of advancedTabs) {
+    const selected = button.dataset.advancedTab === name;
+    button.setAttribute("aria-selected", String(selected));
+    const panel = document.getElementById(`advanced-panel-${button.dataset.advancedTab}`);
+    if (panel) panel.hidden = !selected;
+  }
+}
+
+async function loadScript() {
+  if (!scriptOutput || scriptLoaded) return;
+  scriptLoaded = true;
+  const url = scriptOutput.dataset.scriptUrl;
+  try {
+    const response = await fetch(url, { headers: { Accept: "text/plain" } });
+    if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+    scriptOutput.textContent = await response.text();
+    scriptOutput.classList.remove("is-empty");
+  } catch (error) {
+    scriptLoaded = false;
+    scriptOutput.textContent = `Impossible de charger le script : ${error.message}`;
+    scriptOutput.classList.add("is-empty");
+  }
+}
+
+for (const button of advancedTabs) {
+  button.addEventListener("click", () => {
+    selectAdvancedTab(button.dataset.advancedTab);
+    if (button.dataset.advancedTab === "script") loadScript();
+  });
+}

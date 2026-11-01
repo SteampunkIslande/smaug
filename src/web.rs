@@ -84,6 +84,7 @@ async fn rocket(
         .register("/smaug", catchers![unauthorized, not_found])
         .mount("/smaug/uploads", routes![routes::backend::serve_upload])
         .mount("/smaug/logs", routes![routes::backend::serve_run_log])
+        .mount("/smaug/scripts", routes![routes::backend::serve_run_script])
         .mount("/smaug/files", routes![routes::backend::serve_run_file])
         .mount(
             "/smaug",

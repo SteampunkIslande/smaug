@@ -12,34 +12,47 @@
     <p>Gérer les accès et les configurations. Superviser les analyses en cours.</p>
   </div>
   <div class="page-actions">
-    <a class="btn btn-ghost" href="/smaug/home">{{ ui.icon("arrow-left") }}Retour à mes analyses</a>
+    <a class="btn btn-ghost" href="/smaug/home">{{ ui.icon("arrow-left") }}Retour à l'accueil</a>
   </div>
 </header>
 
 <section class="section" aria-labelledby="tools-title">
   <div class="section-heading">
-    <div><h2 id="tools-title">Gestion de la plateforme</h2><p>Comptes, groupes et configuration.</p></div>
+    <div>
+      <h2 id="tools-title">Gestion de la plateforme</h2>
+      <p>Comptes, groupes et configuration.</p>
+    </div>
   </div>
   <div class="tool-grid">
     <section class="tool-panel" aria-labelledby="users-heading">
       <div class="tool-heading">
         <span class="tool-icon">{{ ui.icon("users") }}</span>
-        <div><h2 id="users-heading">Gestion des utilisateurs</h2><p>Comptes et groupes d’accès</p></div>
+        <div>
+          <h2 id="users-heading">Gestion des utilisateurs</h2>
+          <p>Comptes et groupes d’accès</p>
+        </div>
       </div>
       <nav class="action-list" aria-label="Gestion des utilisateurs">
-        <a href="/smaug/admin/register">{{ ui.icon("user-plus") }}<span>Créer un utilisateur</span>{{ ui.icon("chev", "chev") }}</a>
-        <a href="/smaug/admin/editusers">{{ ui.icon("users") }}<span>Éditer les utilisateurs</span>{{ ui.icon("chev", "chev") }}</a>
-        <a href="/smaug/admin/groups/new">{{ ui.icon("plus") }}<span>Nouveau groupe</span>{{ ui.icon("chev", "chev") }}</a>
+        <a href="/smaug/admin/register">{{ ui.icon("user-plus") }}<span>Créer un utilisateur</span>{{ ui.icon("chev",
+          "chev") }}</a>
+        <a href="/smaug/admin/editusers">{{ ui.icon("users") }}<span>Éditer les utilisateurs</span>{{ ui.icon("chev",
+          "chev") }}</a>
+        <a href="/smaug/admin/groups/new">{{ ui.icon("plus") }}<span>Nouveau groupe</span>{{ ui.icon("chev", "chev")
+          }}</a>
       </nav>
     </section>
     <section class="tool-panel" aria-labelledby="advanced-heading">
       <div class="tool-heading">
         <span class="tool-icon violet">{{ ui.icon("sliders") }}</span>
-        <div><h2 id="advanced-heading">Gestion avancée</h2><p>Organisation et configuration des analyses</p></div>
+        <div>
+          <h2 id="advanced-heading">Gestion avancée</h2>
+          <p>Organisation et configuration des analyses</p>
+        </div>
       </div>
       <nav class="action-list" aria-label="Gestion avancée">
         <a href="/smaug/admin/forms">{{ ui.icon("file") }}<span>Formulaires</span>{{ ui.icon("chev", "chev") }}</a>
-        <a href="/smaug/admin/runtime_config">{{ ui.icon("sliders") }}<span>Configuration d’exécution</span>{{ ui.icon("chev", "chev") }}</a>
+        <a href="/smaug/admin/runtime_config">{{ ui.icon("sliders") }}<span>Configuration d’exécution</span>{{
+          ui.icon("chev", "chev") }}</a>
       </nav>
     </section>
   </div>
@@ -47,24 +60,33 @@
 
 <section class="section" aria-labelledby="supervision-title">
   <div class="section-heading">
-    <div><h2 id="supervision-title">Supervision des runs</h2><p>Exécution et incidents</p></div>
+    <div>
+      <h2 id="supervision-title">Supervision des runs</h2>
+      <p>Exécution et incidents</p>
+    </div>
   </div>
   <div class="grid-2">
     <section class="panel run-panel" aria-labelledby="running-heading">
       <div class="panel-title">
-        <div><span class="state-badge state-running" aria-hidden="true">●</span><h2 id="running-heading">Runs en cours</h2></div>
+        <div><span class="state-badge state-running" aria-hidden="true">●</span>
+          <h2 id="running-heading">Runs en cours</h2>
+        </div>
         <a href="/smaug/show/runs?status=Running" class="text-link">Tous les runs {{ ui.icon("arrow") }}</a>
       </div>
       <div id="running-runs-table" class="table-scroll" aria-live="polite"></div>
-      <p id="running-runs-overflow" class="panel-footnote" hidden>Plus de 10 runs en cours. <a href="/smaug/show/runs?status=Running">Afficher la liste complète</a></p>
+      <p id="running-runs-overflow" class="panel-footnote" hidden>Plus de 10 runs en cours. <a
+          href="/smaug/show/runs?status=Running">Afficher la liste complète</a></p>
     </section>
     <section class="panel run-panel" aria-labelledby="failure-heading">
       <div class="panel-title">
-        <div><span class="state-badge state-failed" aria-hidden="true">●</span><h2 id="failure-heading">Runs en échec</h2></div>
+        <div><span class="state-badge state-failed" aria-hidden="true">●</span>
+          <h2 id="failure-heading">Runs en échec</h2>
+        </div>
         <a href="/smaug/show/runs?status=Failure" class="text-link">Tous les runs {{ ui.icon("arrow") }}</a>
       </div>
       <div id="failure-runs-table" class="table-scroll" aria-live="polite"></div>
-      <p id="failure-runs-overflow" class="panel-footnote" hidden>Plus de 10 runs en échec. <a href="/smaug/show/runs?status=Failure">Afficher la liste complète</a></p>
+      <p id="failure-runs-overflow" class="panel-footnote" hidden>Plus de 10 runs en échec. <a
+          href="/smaug/show/runs?status=Failure">Afficher la liste complète</a></p>
     </section>
   </div>
 </section>

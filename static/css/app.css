@@ -831,6 +831,28 @@ img { max-width: 100%; }
 }
 .log-link:hover { border-color: #cfe4fa; background: #f1f8ff; color: #006dcf; }
 .log-link .icon { width: 15px; height: 15px; color: #327cb9; }
+.advanced-tabs {
+  display: flex;
+  gap: 5px;
+  overflow: auto;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e1e9f2;
+}
+.advanced-tabs button {
+  padding: 10px 9px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: #627b98;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.advanced-tabs button[aria-selected="true"] { border-bottom-color: #087aea; color: #0874e1; }
+.advanced-panel { display: flex; flex-direction: column; gap: 10px; }
+.advanced-panel[hidden] { display: none; }
+.script-output { min-height: 8rem; max-height: 32rem; }
 
 .tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
 .tool-panel { padding: 20px; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: var(--shadow); }
