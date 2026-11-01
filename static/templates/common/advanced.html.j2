@@ -1,0 +1,17 @@
+{% import "_macros.html.j2" as ui %}
+<section class="panel" aria-labelledby="advanced-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("settings", "section-icon") }}<h2 id="advanced-title">Avancé</h2>
+    </div>
+  </div>
+  <div class="log-links">
+    <a class="log-link" href="/smaug/logs/{{ run.run_id }}/{{ attempt.attempt_number }}/stdout" target="_blank"
+      download="run-{{ run.run_id }}-tentative-{{ attempt.attempt_number }}.stdout">
+      {{ ui.icon("download") }}Logs stdout
+    </a>
+    <a class="log-link" href="/smaug/logs/{{ run.run_id }}/{{ attempt.attempt_number }}/stderr" target="_blank"
+      download="run-{{ run.run_id }}-tentative-{{ attempt.attempt_number }}.stderr">
+      {{ ui.icon("download") }}Logs stderr
+    </a>
+  </div>
+</section>
