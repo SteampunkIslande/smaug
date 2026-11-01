@@ -170,7 +170,12 @@ pub async fn show_run_get(
         // Retrieve the attempt history for navigation
         let history = Attempt::list_attempts_for_run(run_id, pool)
             .await
-            .unwrap_or_default();
+            .with_context(|| {
+                format!(
+                    "Impossible d'obtenir la liste des tentatives du run {}",
+                    run_id
+                )
+            })?;
 
         let local_offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
 

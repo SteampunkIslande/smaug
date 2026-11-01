@@ -392,11 +392,11 @@ impl Form {
                 {
                     return Err(FormDefinitionError::ReservedVarName(v.name.to_string()).into());
                 }
-                let ctx: HashMap<&str, &str> = self
+                let ctx: HashMap<&str, Option<&str>> = self
                     .variables
                     .iter()
-                    .map(|v| (v.name.as_str(), ""))
-                    .chain(Self::INJECTED_VARS.iter().map(|n| (*n, "")))
+                    .map(|v| (v.name.as_str(), None))
+                    .chain(Self::INJECTED_VARS.iter().map(|n| (*n, None)))
                     .collect();
                 self.render_template(&ctx).await.map(|_| ())?;
             }
