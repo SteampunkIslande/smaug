@@ -1,6 +1,7 @@
 {% import "_macros.html.j2" as ui %}
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,12 +10,14 @@
   <link rel="icon" href="/smaug/static/favicon.ico">
   {% block head %}{% endblock %}
 </head>
+
 <body class="{% block body_class %}{% endblock %}">
   {% block shell %}
   {% include "_icons.html.j2" %}
   <div class="app{% if not (user is defined and user) %} app--plain{% endif %}">
     <header class="topbar">
-      <a class="brand" href="{% if user is defined and user %}/smaug/home{% else %}/smaug{% endif %}" aria-label="SMAUG, Suite Modulaire d’Analyses Unifiées en Génomique">
+      <a class="brand" href="{% if user is defined and user %}/smaug/home{% else %}/smaug{% endif %}"
+        aria-label="SMAUG, Suite Modulaire d’Analyses Unifiées en Génomique">
         <img src="/smaug/static/img/dragon.png" alt="" width="62" height="62">
         <span class="brand-name">MAUG</span>
         <span class="brand-tagline">Suite Modulaire d’Analyses<br>Unifiées en Génomique</span>
@@ -38,14 +41,16 @@
       <nav class="nav-group">
         <a class="nav-link" data-nav="home" href="/smaug/home">{{ ui.icon("home") }}Accueil</a>
         <a class="nav-link" data-nav="runs" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
-        
-        <a class="nav-link" data-nav="docs" href="/smaug/documentation">{{ ui.icon("book") }}Documentation</a>
+
+        <a class="nav-link" data-nav="docs" target="_blank" href="/smaug/documentation">{{ ui.icon("book")
+          }}Documentation</a>
       </nav>
       <div class="sidebar-bottom">
         {% if user.is_admin %}
         <a class="nav-link" data-nav="admin" href="/smaug/admin/dashboard">{{ ui.icon("settings") }}Administration</a>
         {% endif %}
-        <a class="nav-link" data-nav="account" href="/smaug/passedit/{{ user.id }}">{{ ui.icon("lock") }}Mot de passe</a>
+        <a class="nav-link" data-nav="account" href="/smaug/passedit/{{ user.id }}">{{ ui.icon("lock") }}Mot de
+          passe</a>
       </div>
     </aside>
     {% endif %}
@@ -59,4 +64,5 @@
   <script type="module" src="/smaug/static/js/app.js"></script>
   {% block scripts %}{% endblock %}
 </body>
+
 </html>
