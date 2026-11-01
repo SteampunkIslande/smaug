@@ -4,7 +4,7 @@ use smaug::config::get_smaug_config;
 use smaug::models::{
     AttemptError, FormDefinitionError, RunDefinitionError, SigintBehavior, analysis, appstate,
 };
-use smaug_lib::pipeline_exec::{LogProgressParser, RunProgressCache, RunReport, versionning};
+use smaug_lib::pipeline_exec::{RunProgressCache, RunReport, versionning};
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -190,14 +190,14 @@ async fn send_sigint_then_kill(
         kill(nix_pid, Signal::SIGINT)
     };
 
-    if let Err(e) = sigint_result {
-        if e != Errno::ESRCH {
-            bail!(
-                "Impossible d'envoyer SIGINT au groupe de processus {}: {}",
-                pid,
-                e
-            );
-        }
+    if let Err(e) = sigint_result
+        && e != Errno::ESRCH
+    {
+        bail!(
+            "Impossible d'envoyer SIGINT au groupe de processus {}: {}",
+            pid,
+            e
+        );
     }
 
     let grace_time = Duration::from_secs(grace_time_seconds.unwrap_or(5));
@@ -207,14 +207,14 @@ async fn send_sigint_then_kill(
 
     // 2. Timeout expired: send SIGKILL
     if is_group_leader {
-        if let Err(e) = killpg(nix_pid, Signal::SIGKILL) {
-            if e != Errno::ESRCH {
-                bail!(
-                    "Impossible d'envoyer SIGKILL au groupe de processus {}: {}",
-                    pid,
-                    e
-                );
-            }
+        if let Err(e) = killpg(nix_pid, Signal::SIGKILL)
+            && e != Errno::ESRCH
+        {
+            bail!(
+                "Impossible d'envoyer SIGKILL au groupe de processus {}: {}",
+                pid,
+                e
+            );
         }
     } else {
         // Standard fallback for single process
@@ -231,7 +231,7 @@ async fn send_sigint_then_kill(
         .context("Erreur en récupérant le processus après SIGKILL")
 }
 
-async fn tee_stream_to_file_and_cache<R>(
+async fn tee_stream_to_file<R>(
     stream: R,
     file_path: &Path,
     progress_cache: RunProgressCache,
@@ -243,78 +243,92 @@ async fn tee_stream_to_file_and_cache<R>(
 where
     R: tokio::io::AsyncRead + Unpin + Send + 'static,
 {
-    let mut file = tokio::fs::File::create(file_path).await.with_context(|| {
-        format!(
-            "Impossible de créer le fichier de log {}",
-            file_path.display()
-        )
-    })?;
+    let (mut file, mut write_error) = match tokio::fs::File::create(file_path).await {
+        Ok(file) => (Some(file), None),
+        Err(e) => (
+            None,
+            Some(anyhow::anyhow!(
+                "Impossible de créer le fichier de log {}: {e}",
+                file_path.display()
+            )),
+        ),
+    };
     let mut reader = BufReader::new(stream);
-    let mut line = String::new();
+    let mut buffer = Vec::new();
+    let mut read_error = None;
 
-    let mut parser = if stream_type == "stderr" {
-        let parser = LogProgressParser::new(run_id, attempt_number);
-        progress_cache.upsert(parser.state().clone()).await;
-        Some(parser)
-    } else {
-        None
-    };
+    if stream_type == "stderr" {
+        // Make the attempt visible in the progress cache even before the first
+        // stderr line arrives.
+        progress_cache.ensure_attempt(run_id, attempt_number).await;
+    }
 
-    let (report_tx, report_handle) = match run_report {
-        Some(report) => {
-            let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(4096);
-            let handle = tokio::spawn(async move {
-                while let Some(line) = rx.recv().await {
-                    report.observe(&line).await;
-                }
-                report.finish().await;
-            });
-            (Some(tx), Some(handle))
-        }
-        None => (None, None),
-    };
-
-    let read_result: Result<()> = async {
-        loop {
-            line.clear();
-            let bytes_read = reader
-                .read_line(&mut line)
-                .await
-                .with_context(|| format!("Impossible de lire la sortie {}", stream_type))?;
-            if bytes_read == 0 {
+    loop {
+        buffer.clear();
+        match reader.read_until(b'\n', &mut buffer).await {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(e) => {
+                read_error = Some(
+                    anyhow::anyhow!(e)
+                        .context(format!("Impossible de lire la sortie {stream_type}")),
+                );
                 break;
             }
+        }
 
-            file.write_all(line.as_bytes())
-                .await
-                .with_context(|| format!("Impossible d'écrire dans {}", file_path.display()))?;
+        // The log is the source of truth: it is written byte for byte before
+        // any parsing, and a write failure must not stop draining the pipe.
+        if let Some(active_file) = file.as_mut()
+            && let Err(e) = active_file.write_all(&buffer).await
+        {
+            warn!(
+                "Impossible d'écrire dans le fichier de log {}: {e}; la lecture continue",
+                file_path.display()
+            );
+            write_error = Some(anyhow::anyhow!(
+                "Impossible d'écrire dans le fichier de log {}: {e}",
+                file_path.display()
+            ));
+            file = None;
+        }
 
-            if let Some(parser) = parser.as_mut() {
-                parser.parse_line(&line);
-                progress_cache.upsert(parser.state().clone()).await;
-            }
-
-            // Reporting is best-effort: a slow report must never backpressure the
-            // analysis by blocking this stderr drain loop.
-            if let Some(tx) = report_tx.as_ref() {
-                let _ = tx.try_send(line.clone());
+        if stream_type == "stderr" {
+            // Decoding is lossy and separate from the file write: invalid UTF-8
+            // can never prevent the log from being saved. Snakemake terminates
+            // its progress lines with `\n`, so the buffer is exactly one line.
+            let text = String::from_utf8_lossy(&buffer);
+            let line = text.trim_end_matches('\n');
+            if !line.is_empty() {
+                progress_cache
+                    .observe_stderr(run_id, attempt_number, line)
+                    .await;
+                if let Some(report) = run_report.as_ref() {
+                    report.observe(line).await;
+                }
             }
         }
-        Ok(())
     }
-    .await;
 
-    drop(report_tx);
-    if let Some(handle) = report_handle
-        && let Err(e) = handle.await
+    if let Some(report) = run_report.as_ref() {
+        report.finish().await;
+    }
+
+    if let Some(mut active_file) = file
+        && let Err(e) = active_file.flush().await
     {
-        warn!("La tâche d'écriture du rapport d'exécution a échoué: {e}");
+        write_error = Some(anyhow::anyhow!(
+            "Impossible de vider le tampon de {}: {e}",
+            file_path.display()
+        ));
     }
-    read_result?;
 
-    file.flush()
-        .await
-        .with_context(|| format!("Impossible de vider le tampon de {}", file_path.display()))?;
+    if let Some(error) = read_error {
+        return Err(error);
+    }
+    if let Some(error) = write_error {
+        return Err(error);
+    }
     Ok(())
 }
 
@@ -386,6 +400,7 @@ async fn run_script(
         .arg(&script_path)
         .current_dir(attempt.outdir())
         .process_group(0)
+        .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -412,7 +427,7 @@ async fn run_script(
 
     // Spawn multiplexers
     let stdout_handle = tokio::spawn(async move {
-        tee_stream_to_file_and_cache(
+        tee_stream_to_file(
             stdout,
             &stdout_path,
             progress_cache_stdout,
@@ -425,7 +440,7 @@ async fn run_script(
     });
 
     let stderr_handle = tokio::spawn(async move {
-        tee_stream_to_file_and_cache(
+        tee_stream_to_file(
             stderr,
             &stderr_path,
             progress_cache_stderr,
@@ -440,21 +455,14 @@ async fn run_script(
     // Race between the end of the script and the shutdown signal.
     tokio::select! {
         status_res = child.wait() => {
-            // Wait for the log multiplexers to flush before returning.
-            async {
-                let (stdout_result, stderr_result) =
-                    tokio::try_join!(stdout_handle, stderr_handle)?;
-                stdout_result?;
-                stderr_result?;
-                Ok::<(), anyhow::Error>(())
-            }
-            .await
-            .map_err(|e| anyhow::anyhow!("Erreur lors de la lecture des logs: {e:#}"))?;
-            match status_res {
+            let outcome = match status_res {
                 Ok(status) if status.success() => Ok(()),
                 Ok(status) => Err(exit_status_error(status)),
                 Err(e) => Err(e).context("Erreur en attendant la fin du script"),
-            }
+            };
+            // Always wait for both log multiplexers to flush before returning.
+            let logs_outcome = join_log_tasks(stdout_handle, stderr_handle).await;
+            outcome.and(logs_outcome)
         }
 
         _ = shutdown_rx.recv() => {
@@ -481,27 +489,40 @@ async fn run_script(
             };
 
             // Crucial: wait for the logs to finish capturing the shutdown process.
-            let logs_result: Result<()> = async {
-                let (stdout_result, stderr_result) =
-                    tokio::try_join!(stdout_handle, stderr_handle)?;
-                stdout_result?;
-                stderr_result?;
-                Ok::<(), anyhow::Error>(())
-            }
-            .await
-            .map_err(|e| anyhow::anyhow!("Erreur lors de la lecture des logs: {e:#}"));
-            outcome.and(logs_result)
+            let logs_outcome = join_log_tasks(stdout_handle, stderr_handle).await;
+            outcome.and(logs_outcome)
         }
     }
 }
 
+/// Awaits both log tasks, even when one of them fails.
+///
+/// `try_join!` would return as soon as the first error occurs and leave the
+/// other file unflushed; `join!` guarantees both files reach EOF.
+async fn join_log_tasks(
+    stdout_handle: tokio::task::JoinHandle<Result<()>>,
+    stderr_handle: tokio::task::JoinHandle<Result<()>>,
+) -> Result<()> {
+    let (stdout_result, stderr_result) = tokio::join!(stdout_handle, stderr_handle);
+
+    let stdout_result = stdout_result.context("La tâche de lecture de stdout a échoué")?;
+    let stderr_result = stderr_result.context("La tâche de lecture de stderr a échoué")?;
+
+    stdout_result?;
+    stderr_result?;
+    Ok(())
+}
+
 /// Builds the error describing an analysis process that exited with a failure.
 fn exit_status_error(status: ExitStatus) -> anyhow::Error {
-    let code = status
+    use std::os::unix::process::ExitStatusExt;
+
+    let reason = status
         .code()
-        .map(|c| c.to_string())
+        .map(|code| format!("exit code {code}"))
+        .or_else(|| status.signal().map(|signal| format!("signal {signal}")))
         .unwrap_or_else(|| "?".to_string());
-    anyhow::anyhow!("(exit code {})", code)
+    anyhow::anyhow!("({reason})")
 }
 
 // Helper function to deduplicate directory validation

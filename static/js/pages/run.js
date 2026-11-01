@@ -132,7 +132,7 @@ async function refreshSqueue(jobName) {
   }
 
   try {
-    const jobs = await requestJson(api.squeue(currentJobName));
+    const jobs = await requestJson(api.squeue(runId, attemptNumber));
     const safeJobs = Array.isArray(jobs) ? jobs : [];
     setText("#pending-jobs-count", String(safeJobs.filter((job) => isState(job.state, ["PENDING", "PD"])).length));
     setText("#running-jobs-count", String(safeJobs.filter((job) => isState(job.state, ["RUNNING", "R"])).length));

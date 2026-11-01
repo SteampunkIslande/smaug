@@ -76,7 +76,7 @@ export const api = Object.freeze({
   retryRun: (runId) => `${API_ROOT}/retry/${encode(runId)}`,
   upload: `${API_ROOT}/upload`,
   watch: (runId, attemptNumber) => `${API_ROOT}/watch/${encode(runId)}/${encode(attemptNumber)}`,
-  squeue: (jobName) => `${API_ROOT}/squeue?${new URLSearchParams({ job_name: jobName })}`,
+  squeue: (runId, attemptNumber) => `${API_ROOT}/squeue?${new URLSearchParams({ run_id: String(runId), attempt_number: String(attemptNumber) })}`,
   configSet: `${API_ROOT}/config/set`,
   listRuns: ({ page = 1, pageSize = 5, status = "" } = {}) => {
     const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });

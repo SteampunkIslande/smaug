@@ -20,13 +20,20 @@ impl LogProgressParser {
     pub fn new(run_id: i64, attempt_number: u32) -> Self {
         let mut state = RunProgress::new(run_id, attempt_number);
         state.log_available = true;
+        Self::from_progress(state)
+    }
 
+    /// Builds a parser around an already known progress snapshot.
+    ///
+    /// Used when the cache receives an explicit `RunProgress` instead of
+    /// replaying log lines.
+    pub fn from_progress(state: RunProgress) -> Self {
         Self {
             state,
             re_ansi: Regex::new(r"\x1b\[[0-9;?]*[ -/]*[@-~]").unwrap(),
-            re_step: Regex::new(r"(?i)^##\s+(?:STEP|PHASE)\s+(.+?)\s*$").unwrap(),
+            re_step: Regex::new(r"(?i)^##\s+(?:STEP|PHASE)\b\s*(.*?)\s*$").unwrap(),
             re_progress: Regex::new(r"(?i)^##\s+PROGRESS\s+(\d{1,3})\s*%?\s*$").unwrap(),
-            re_job_name: Regex::new(r"(?i)^SLURM\s+run\s+ID:\s+(.+?)\s*$").unwrap(),
+            re_job_name: Regex::new(r"(?i)^\s*SLURM\s+run\s+ID:\s+(.+?)\s*$").unwrap(),
             re_snakemake: Regex::new(r"(?i)(\d+)\s+of\s+(\d+)\s+steps\s+\((\d{1,3})%\)\s+done")
                 .unwrap(),
             re_rsync: Regex::new(r"(?i)^\s*[\d,.]+\s+(\d{1,3})%\s+.*(?:xfr#|to-chk|ir-chk)")
@@ -38,6 +45,10 @@ impl LogProgressParser {
         &self.state
     }
 
+    pub fn state_mut(&mut self) -> &mut RunProgress {
+        &mut self.state
+    }
+
     pub fn parse_line(&mut self, raw_line: &str) {
         let stripped = self.re_ansi.replace_all(raw_line, "");
         let line = stripped.trim();
@@ -47,7 +58,8 @@ impl LogProgressParser {
         }
 
         if let Some(cap) = self.re_step.captures(line) {
-            self.state.current_step_string = Some(cap[1].trim().to_string());
+            let step = cap[1].trim();
+            self.state.current_step_string = (!step.is_empty()).then(|| step.to_string());
             self.state.current_progress = None;
             self.state.done_jobs_count = None;
             self.state.slurm_job_name = None;
@@ -66,15 +78,15 @@ impl LogProgressParser {
 
         if let Some(cap) = self.re_snakemake.captures(line) {
             let done = cap[1].parse::<i64>().unwrap_or(0);
-            let total = cap[2].parse::<i64>().unwrap_or(0);
+            let _total = cap[2].parse::<i64>().unwrap_or(0);
             let percent = cap[3].parse::<i64>().unwrap_or(0).clamp(0, 100);
 
             self.state.current_progress = Some(percent);
             self.state.done_jobs_count = Some(done);
 
-            if total > 0 && done >= total {
-                self.state.slurm_job_name = None;
-            }
+            // Keep `slurm_job_name` even at 100 %: the squeue tracker still needs
+            // it to collect the last states, and it is only replaced when the
+            // next workflow or step starts.
 
             self.state.last_output_line = Some(truncate_line(line, 500));
             return;
@@ -91,6 +103,8 @@ impl LogProgressParser {
 
     pub fn parse_text(run_id: i64, attempt_number: u32, content: &str) -> RunProgress {
         let mut parser = Self::new(run_id, attempt_number);
+        // Snakemake emits progress updates as regular newline-terminated lines,
+        // never with carriage returns.
         for raw_line in content.lines() {
             parser.parse_line(raw_line);
         }
@@ -167,6 +181,16 @@ mod tests {
     }
 
     #[test]
+    fn bare_step_marker_still_resets_the_slurm_job_name() {
+        let log = "SLURM run ID: workflow-1\n## STEP\n";
+
+        let parsed = LogProgressParser::parse_text(1, 1, log);
+
+        assert_eq!(parsed.slurm_job_name, None);
+        assert_eq!(parsed.current_step_string, None);
+    }
+
+    #[test]
     fn parses_explicit_progress_and_rsync_fallback() {
         let log = "## STEP copy\n\
                    ## PROGRESS 25\n\
@@ -185,15 +209,18 @@ mod tests {
     }
 
     #[test]
-    fn completed_snakemake_clears_job_name() {
+    fn emits_slurm_run_id_for_squeue_tracking() {
         let log = "## STEP run\n\
-                   ## SLURM_JOB_NAME pipeline\n\
+                   SLURM run ID: 8cb8c359-3930-40ec-a5df-3da736d2b4e9\n\
                    10 of 10 steps (100%) done\n";
 
         let parsed = LogProgressParser::parse_text(1, 1, log);
 
         assert_eq!(parsed.current_progress, Some(100));
         assert_eq!(parsed.done_jobs_count, Some(10));
-        assert_eq!(parsed.slurm_job_name, None);
+        assert_eq!(
+            parsed.slurm_job_name.as_deref(),
+            Some("8cb8c359-3930-40ec-a5df-3da736d2b4e9")
+        );
     }
 }
