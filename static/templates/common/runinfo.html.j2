@@ -71,14 +71,14 @@
   </div>
   <div class="exports">
     {% for section in exports %}
-    <div class="export-group">
-      <h3>{{ section.title | e }}</h3>
+    <details class="export-group">
+      <summary>{{ section.title | e }}</summary>
       <div class="export-list">
         {% for file in section.files %}
-        <a href="{{ file.url | e }}">{{ file.name | e }}</a>
+        <a href="{{ file.url | e }}" target="_blank" rel="noopener">{{ file.name | e }}</a>
         {% endfor %}
       </div>
-    </div>
+    </details>
     {% endfor %}
   </div>
 </section>
