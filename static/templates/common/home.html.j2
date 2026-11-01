@@ -28,53 +28,11 @@
   </div>
 </section>
 
-<section id="categories" class="section modules" aria-labelledby="categories-title">
-  <div class="section-heading">
-    <div>
-      <h2 id="categories-title">Lancer une analyse</h2>
-      <p>Choisissez votre domaine ou retrouvez un formulaire ci-dessous.</p>
-    </div>
-    <button type="button" class="text-link" data-scroll-to="forms">Tous les formulaires {{ ui.icon("arrow") }}</button>
-  </div>
-  <div class="module-grid">
-    <button type="button" class="module-card blue" data-category="demultiplexage">
-      <span class="module-icon">{{ ui.icon("dna") }}</span>
-      <span><strong>Démultiplexage</strong><p>Traitement des données de séquençage Illumina</p></span>
-      {{ ui.icon("chev", "module-arrow") }}
-    </button>
-    <button type="button" class="module-card coral" data-category="genetique">
-      <span class="module-icon">{{ ui.icon("dna") }}</span>
-      <span><strong>Génétique constitutionnelle</strong><p>Analyses germinales, WES, WGS et panels</p></span>
-      {{ ui.icon("chev", "module-arrow") }}
-    </button>
-    <button type="button" class="module-card violet" data-category="onco">
-      <span class="module-icon">{{ ui.icon("nodes") }}</span>
-      <span><strong>Onco-hématologie</strong><p>Analyses somatiques, CNA, CNV et MRD</p></span>
-      {{ ui.icon("chev", "module-arrow") }}
-    </button>
-    <button type="button" class="module-card mint" data-category="immunologie">
-      <span class="module-icon">{{ ui.icon("antibody") }}</span>
-      <span><strong>Immunologie</strong><p>Analyses d’expression et immunogénomique</p></span>
-      {{ ui.icon("chev", "module-arrow") }}
-    </button>
-    <a class="module-card amber" href="/smaug/show/runs">
-      <span class="module-icon">{{ ui.icon("chart") }}</span>
-      <span><strong>Suivi des analyses</strong><p>Runs, statuts, résultats et validations</p></span>
-      {{ ui.icon("chev", "module-arrow") }}
-    </a>
-    <button type="button" class="module-card slate" data-category="autres">
-      <span class="module-icon">{{ ui.icon("settings") }}</span>
-      <span><strong>Autres outils</strong><p>QC, annotations, conversions et utilitaires</p></span>
-      {{ ui.icon("chev", "module-arrow") }}
-    </button>
-  </div>
-  <p id="categoryFeedback" class="panel-footnote" role="status" hidden></p>
-</section>
 
 <div class="bottom-grid">
   <section id="forms" class="panel" aria-labelledby="forms-title">
     <div class="panel-title">
-      <div>{{ ui.icon("flask", "section-icon") }}<h2 id="forms-title">Formulaires disponibles</h2></div>
+      <div>{{ ui.icon("flask", "section-icon") }}<h2 id="forms-title">Lancer une analyse</h2></div>
       <span id="availableCount" class="soft-badge"></span>
     </div>
     <div class="filterline">
