@@ -421,12 +421,16 @@ img { max-width: 100%; }
 .panel-title h2 { font-size: 17px; letter-spacing: -.025em; }
 .section-icon { color: #0878ec; }
 .soft-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 9px;
   border-radius: 100px;
   background: #ebf5ff;
   color: #47749a;
   font-size: 10px;
   white-space: nowrap;
+  vertical-align: middle;
 }
 .filterline { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .panel-search {
