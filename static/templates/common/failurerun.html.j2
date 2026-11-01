@@ -7,8 +7,9 @@
 <header class="page-head">
   <div>
     <p class="eyebrow">Analyse · échec</p>
-    <h1>{{ run.run_name }}</h1>
-    <p>{% if attempt.attempt_number == run.attempt_count %}Dernière tentative échouée{% else %}Tentative {{ attempt.attempt_number }} échouée{% endif %}</p>
+    <h1>{{ run.run_name }} - Tentative {{ attempt.attempt_number }}</h1>
+    <p>{% if attempt.attempt_number == run.attempt_count %}Dernière tentative échouée{% else %}Tentative {{
+      attempt.attempt_number }} échouée{% endif %}</p>
   </div>
   <div class="page-actions">
     <a class="btn btn-ghost" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
@@ -22,7 +23,8 @@
 
 <section class="panel" aria-labelledby="failure-title">
   <div class="panel-title">
-    <div>{{ ui.icon("error", "section-icon") }}<h2 id="failure-title">Raison de l’échec</h2></div>
+    <div>{{ ui.icon("error", "section-icon") }}<h2 id="failure-title">Raison de l’échec</h2>
+    </div>
   </div>
   <p>{{ fail_reason }}</p>
 </section>
