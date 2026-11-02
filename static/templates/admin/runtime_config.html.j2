@@ -1,17 +1,6 @@
 {% extends "base.html.j2" %}
 {% import "_macros.html.j2" as ui %}
 
-{% set enum_labels = {
-    "on_sigint": {
-        "StopJobs": "Arrêter les jobs",
-        "WaitForJobCompletion": "Attendre la fin des jobs"
-    },
-    "active_routine": {
-        "RoutineOff": "Routine désactivée",
-        "RoutineOn": "Routine activée"
-    }
-} %}
-
 {% block title %}Configuration d’exécution | SMAUG{% endblock %}
 {% block body_class %}admin-page{% endblock %}
 
@@ -38,21 +27,10 @@
       </thead>
       <tbody id="config-body">
         {% for entry in entries %}
-        {% set labels = enum_labels[entry.key] | default({}) %}
         <tr data-config-row="{{ entry.key }}">
           <td class="config-key">{{ entry.key }}</td>
           <td>{{ entry.description }}</td>
-          <td>
-            {% if entry.value_input is string and entry.value_input == "date" %}
-            <input type="date" name="{{ entry.key }}" value="{{ entry.value | e }}">
-            {% else %}
-            <select name="{{ entry.key }}">
-              {% for option in entry.value_input %}
-              <option value="{{ option }}"{% if option == entry.value %} selected{% endif %}>{{ labels[option] | default(option) }}</option>
-              {% endfor %}
-            </select>
-            {% endif %}
-          </td>
+          <td>{{ entry.input_html | safe }}</td>
           <td><button type="button" class="btn btn-sm" data-config-key="{{ entry.key }}">Sauvegarder</button></td>
         </tr>
         {% endfor %}

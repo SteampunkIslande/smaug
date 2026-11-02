@@ -200,6 +200,8 @@ mod tests {
 
     #[test]
     fn runtime_config_translates_enum_values() {
+        use crate::models::appstate::{ActiveRoutine, ConfigItem, SigintBehavior};
+
         let env = load_env();
         let html = env
             .get_template("admin/runtime_config.html.j2")
@@ -208,20 +210,17 @@ mod tests {
                 entries => vec![
                     context! {
                         key => "on_sigint",
-                        value => "StopJobs",
-                        value_input => vec!["StopJobs", "WaitForJobCompletion"],
+                        input_html => SigintBehavior::value_input().render_html("on_sigint", "StopJobs"),
                         description => "Signal behavior",
                     },
                     context! {
                         key => "active_routine",
-                        value => "RoutineOff",
-                        value_input => vec!["RoutineOff", "RoutineOn"],
+                        input_html => ActiveRoutine::value_input().render_html("active_routine", "RoutineOff"),
                         description => "Routine state",
                     },
                     context! {
                         key => "shutdown_date",
-                        value => "2026-01-01",
-                        value_input => "date",
+                        input_html => crate::models::appstate::ValueInput::Date.render_html("shutdown_date", "2026-01-01"),
                         description => "Date",
                     },
                 ]

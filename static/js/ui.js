@@ -67,6 +67,16 @@ export function setBusy(element, busy, busyLabel = "Chargement…") {
   }
 }
 
+const COLUMN_CLASSES = {
+  content: "content-column",
+  badge: "badge-column",
+  numeric: "numeric-column",
+};
+
+function columnClass(column) {
+  return COLUMN_CLASSES[column?.kind] || "";
+}
+
 export function renderTable(container, payload, emptyMessage = "Aucune donnée à afficher.") {
   if (!container) return;
   const data = isApiSuccess(payload) ? getApiData(payload) : payload;
@@ -89,7 +99,8 @@ export function renderTable(container, payload, emptyMessage = "Aucune donnée �
   const headerRow = document.createElement("tr");
   for (const column of data.header) {
     const th = document.createElement("th");
-    if (column.class) th.className = column.class;
+    const className = columnClass(column);
+    if (className) th.className = className;
     th.textContent = column.content ?? "";
     headerRow.append(th);
   }
@@ -98,17 +109,18 @@ export function renderTable(container, payload, emptyMessage = "Aucune donnée �
   const tbody = document.createElement("tbody");
   for (const row of data.table) {
     const tr = document.createElement("tr");
-    for (const cell of row) {
+    for (const [index, cell] of row.entries()) {
       const td = document.createElement("td");
-      if (cell.td_class) td.className = cell.td_class;
+      const className = columnClass(data.header[index]);
+      if (className) td.className = className;
       if (cell.href) {
         const link = document.createElement("a");
         link.href = cell.href;
         link.textContent = cell.content ?? "";
         td.append(link);
-      } else if (cell.class) {
+      } else if (cell.status) {
         const span = document.createElement("span");
-        span.className = cell.class;
+        span.className = `run-status ${cell.status}`;
         span.textContent = cell.content ?? "";
         td.append(span);
       } else {

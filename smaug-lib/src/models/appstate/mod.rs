@@ -18,20 +18,20 @@ mod appstate_macros;
 mod appstate_types;
 
 pub use appstate_impl::AppState;
-pub use appstate_macros::{ConfigItem, ValueInput};
+pub use appstate_macros::{ComboOption, ConfigItem, ValueInput};
 
 define_app_configs! {
     pub enum SigintBehavior {
         db_key: "on_sigint",
         description: "Actions à mener lorsque cette application reçoit SIGINT",
         default: StopJobs,
-        variants: [StopJobs, WaitForJobCompletion],
+        variants: [StopJobs => "Arrêter les jobs", WaitForJobCompletion => "Attendre la fin des jobs"],
     },
 
     pub enum ActiveRoutine {
         db_key: "active_routine",
         description: "Permet l'exécution immédiate de tous les runs...",
         default: RoutineOn,
-        variants: [RoutineOff, RoutineOn],
+        variants: [RoutineOff => "Routine désactivée", RoutineOn => "Routine activée"],
     }
 }

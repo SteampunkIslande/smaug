@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     auth::Authenticated,
-    models::{AppState, AppStateConfigKey, appstate::ValueInput},
+    models::{AppState, AppStateConfigKey},
     routes::frontend::FrontendError,
     templates::{Template, context},
 };
@@ -12,8 +12,7 @@ use crate::{
 #[derive(Serialize)]
 struct ConfigEntryForTemplate {
     key: AppStateConfigKey,
-    value: String,
-    value_input: ValueInput,
+    input_html: String,
     description: &'static str,
 }
 
@@ -29,10 +28,10 @@ pub async fn runtime_config_page_get(
     let mut entries = Vec::with_capacity(AppStateConfigKey::all().len());
     for key in AppStateConfigKey::all() {
         let value = AppState::get_str(*key, pool).await?;
+        let input_html = key.value_input().render_html(key.as_str(), &value);
         entries.push(ConfigEntryForTemplate {
             key: *key,
-            value,
-            value_input: key.value_input(),
+            input_html,
             description: key.description(),
         });
     }

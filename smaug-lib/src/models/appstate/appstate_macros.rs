@@ -15,27 +15,34 @@ pub trait ConfigItem:
     fn value_input() -> ValueInput;
 }
 
+/// A selectable value and its human-readable label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ComboOption {
+    pub value: &'static str,
+    pub label: &'static str,
+}
+
 /// Input type for rendering HTML form elements in the Admin UI.
 /// Only implements Serialize (for API responses), not Deserialize.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValueInput {
     /// Renders an HTML `<select>` with predefined options
-    Combo(&'static [&'static str]),
+    Combo(&'static [ComboOption]),
     /// Renders an HTML `<input type="date">`
     Date,
 }
 
-// Manual Serialize implementation because &'static [&'static str] doesn't implement Deserialize
+// Manual Serialize implementation because `&'static [ComboOption]` doesn't implement Deserialize
 impl Serialize for ValueInput {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         match self {
-            ValueInput::Combo(allowed) => {
-                let mut seq = serializer.serialize_seq(Some(allowed.len()))?;
-                for &item in *allowed {
-                    seq.serialize_element(item)?;
+            ValueInput::Combo(options) => {
+                let mut seq = serializer.serialize_seq(Some(options.len()))?;
+                for option in *options {
+                    seq.serialize_element(option.value)?;
                 }
                 seq.end()
             }
@@ -47,26 +54,29 @@ impl Serialize for ValueInput {
 impl ValueInput {
     /// Renders the appropriate HTML input for this config value.
     pub fn render_html(&self, name: &str, current_value: &str) -> String {
+        let name = html_escape::encode_double_quoted_attribute(name);
         match self {
-            ValueInput::Combo(allowed) => {
+            ValueInput::Combo(options) => {
                 let mut html = format!(r#"<select class="config-select" name="{name}">"#);
-                for &opt in *allowed {
-                    let selected = if opt.eq_ignore_ascii_case(current_value) {
+                for option in *options {
+                    let selected = if option.value.eq_ignore_ascii_case(current_value) {
                         " selected"
                     } else {
                         ""
                     };
+                    let value = html_escape::encode_double_quoted_attribute(option.value);
+                    let label = html_escape::encode_text(option.label);
                     html.push_str(&format!(
-                        r#"<option value="{opt}"{selected}>{opt}</option>"#
+                        r#"<option value="{value}"{selected}>{label}</option>"#
                     ));
                 }
                 html.push_str("</select>");
                 html
             }
             ValueInput::Date => {
+                let current_value = html_escape::encode_double_quoted_attribute(current_value);
                 format!(
-                    r#"<input type="date" class="config-input" name="{name}" value="{}">"#,
-                    html_escape::encode_text(current_value)
+                    r#"<input type="date" class="config-input" name="{name}" value="{current_value}">"#
                 )
             }
         }

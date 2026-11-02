@@ -15,7 +15,7 @@ macro_rules! config_item_generator {
             db_key: $db_key:expr,
             description: $desc:expr,
             default: $default:ident,
-            variants: [ $($variant:ident),* $(,)? ]$(,)?
+            variants: [ $($variant:ident => $label:literal),* $(,)? ]$(,)?
         }
     ) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -54,7 +54,14 @@ macro_rules! config_item_generator {
 
             fn default_value() -> Self { Self::$default }
             fn value_input() -> crate::models::appstate::ValueInput {
-                crate::models::appstate::ValueInput::Combo(&[ $( stringify!($variant) ),* ])
+                crate::models::appstate::ValueInput::Combo(&[
+                    $(
+                        crate::models::appstate::ComboOption {
+                            value: stringify!($variant),
+                            label: $label,
+                        }
+                    ),*
+                ])
             }
         }
     };

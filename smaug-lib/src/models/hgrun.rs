@@ -236,17 +236,14 @@ impl Run {
             json!({
                 "content": &self.run_name,
                 "href": Some(format!("/smaug/show/run/{}", self.run_id?)),
-                "td_class": "content-column"
             }),
             // Column 2 - User
             json!({
                 "content": user_name,
-                "td_class": "content-column"
             }),
             // Column 3 - Run date
             json!({
                 "content": creation_date_str,
-                "td_class": "content-column"
             }),
             // Column 4 - Status
             json!({
@@ -257,33 +254,32 @@ impl Run {
                     RunStatus::Running => "Analyses en cours",
                     RunStatus::Success => "Succès"
                 },
-                "class": format!("run-status {}", match self.status {
+                "status": match self.status {
                     RunStatus::Idle => "idle",
                     RunStatus::Failure(_) => "failure",
                     RunStatus::Pending => "pending",
                     RunStatus::Running => "running",
                     RunStatus::Success => "success"
-                }),
-                "td_class": "badge-column"
+                },
             }),
             // Column 5 - Attempts
             json!({
                 "content": &self.attempt_count.to_string(),
-                "td_class": "numeric-column"
             })
         ]))
     }
 
     /// Header of the runs table.
     ///
-    /// The output must match `Run::to_json` column by column.
+    /// Each column carries a semantic `kind`, from which the front end derives
+    /// the cell classes. The output must match `Run::to_json` column by column.
     fn runs_table_header() -> Value {
         json!([
-            json!({"content": "Nom du run", "class": "content-column"}),
-            json!({"content": "Utilisateur", "class": "content-column"}),
-            json!({"content": "Date du run", "class": "content-column"}),
-            json!({"content": "Statut", "class": "badge-column"}),
-            json!({"content": "Tentative", "class": "numeric-column"}),
+            json!({"content": "Nom du run", "kind": "content"}),
+            json!({"content": "Utilisateur", "kind": "content"}),
+            json!({"content": "Date du run", "kind": "content"}),
+            json!({"content": "Statut", "kind": "badge"}),
+            json!({"content": "Tentative", "kind": "numeric"}),
         ])
     }
 
