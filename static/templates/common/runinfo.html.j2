@@ -83,3 +83,12 @@
   </div>
 </section>
 {% endif %}
+{% if report_url %}
+<section class="panel" aria-labelledby="diagnostics-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("file", "section-icon") }}<h2 id="diagnostics-title">Diagnostic d’exécution</h2>
+    </div>
+  </div>
+  <p><a class="btn btn-ghost" href="{{ report_url | e }}" target="_blank" rel="noopener">Ouvrir le rapport d’exécution</a></p>
+</section>
+{% endif %}

@@ -51,6 +51,12 @@ struct RunReportInner {
 struct ReportState {
     /// UUID of the current snakemake workflow, emitted as `SLURM run ID: <uuid>`.
     slurm_job_name: Option<String>,
+    /// Working directory used by the current Snakemake invocation.
+    ///
+    /// Snakemake prints relative `input:` and `log:` paths against this
+    /// directory, which is not necessarily the attempt output directory (a
+    /// pipeline may run Snakemake from `<outdir>/results`, for example).
+    snakemake_workdir: Option<PathBuf>,
     /// Job block currently being printed by snakemake.
     block: Option<JobBlock>,
 }
@@ -143,6 +149,7 @@ impl RunReport {
             // run ID: the next workflow must publish its own `SLURM run ID`.
             self.flush_block(state).await?;
             state.slurm_job_name = None;
+            state.snakemake_workdir = None;
             return Ok(());
         }
 
@@ -152,6 +159,7 @@ impl RunReport {
                 // the next one.
                 self.flush_block(state).await?;
                 state.slurm_job_name = Some(job_name);
+                state.snakemake_workdir = None;
             }
             return Ok(());
         }
@@ -175,10 +183,25 @@ impl RunReport {
                 block = JobBlock::default();
             }
 
+            if let Some(path) = submission.log_path.as_deref()
+                && let Some(workdir) = workdir_from_slurm_log(&self.inner.outdir, path)
+            {
+                // Snakemake's SLURM executor reports its log path relative to
+                // the process working directory. `results/.snakemake/...`
+                // therefore tells us that Snakemake is running from
+                // `<run>/results`, which is the base for the job's `input:` and
+                // `log:` properties.
+                state.snakemake_workdir = Some(workdir);
+            }
+
             block.jobid = Some(submission.snakemake_job_id);
             block.slurm_job_id = Some(submission.slurm_job_id);
             if let Some(path) = submission.log_path {
-                block.log_paths.push(path);
+                // The SLURM log path is printed relative to the process working
+                // directory (the run directory), not to Snakemake's workdir.
+                block
+                    .log_paths
+                    .push(absolutize(&self.inner.outdir, &path).display().to_string());
             }
             self.insert_block(state, block, RuleStatus::Submitted)
                 .await?;
@@ -285,7 +308,7 @@ impl RunReport {
         Ok(())
     }
 
-    async fn persist_block(&self, state: &ReportState, block: JobBlock) -> Result<()> {
+    async fn persist_block(&self, state: &mut ReportState, block: JobBlock) -> Result<()> {
         match block.kind {
             BlockKind::Start => {
                 let status = if block.slurm_job_id.is_some() {
@@ -301,7 +324,7 @@ impl RunReport {
 
     async fn insert_block(
         &self,
-        state: &ReportState,
+        state: &mut ReportState,
         block: JobBlock,
         status: RuleStatus,
     ) -> Result<()> {
@@ -312,27 +335,54 @@ impl RunReport {
         let workflow = state.slurm_job_name.as_deref().unwrap_or_default();
         let rule_name = block.rule_name.unwrap_or_default();
 
-        let mut log_paths = block
-            .log_paths
-            .iter()
-            .map(|path| absolutize(&self.inner.outdir, path))
-            .collect::<Vec<_>>();
-        log_paths.sort();
-        log_paths.dedup();
+        // Resolve inputs first: they normally exist before the job starts, so
+        // they are the most reliable way to discover Snakemake's working
+        // directory when the submission log did not reveal it.
+        let mut roots = search_roots(&self.inner.outdir, state.snakemake_workdir.as_deref());
+        let mut fallback = state
+            .snakemake_workdir
+            .clone()
+            .unwrap_or_else(|| self.inner.outdir.clone());
 
-        let input_paths = block
-            .inputs
-            .iter()
-            .map(|path| absolutize(&self.inner.outdir, path))
-            .collect::<Vec<_>>();
-        let mut input_sizes = Vec::with_capacity(input_paths.len());
-        for path in &input_paths {
-            let size = tokio::fs::metadata(path)
+        let mut input_paths = Vec::with_capacity(block.inputs.len());
+        let mut input_sizes = Vec::with_capacity(block.inputs.len());
+        for raw_path in &block.inputs {
+            let (path, root) = resolve_path(&roots, &fallback, raw_path);
+            if let Some(root) = root
+                && state.snakemake_workdir.as_deref() != Some(root.as_path())
+            {
+                state.snakemake_workdir = Some(root);
+                roots = search_roots(&self.inner.outdir, state.snakemake_workdir.as_deref());
+                fallback = state
+                    .snakemake_workdir
+                    .clone()
+                    .unwrap_or_else(|| self.inner.outdir.clone());
+            }
+            let size = tokio::fs::metadata(&path)
                 .await
                 .map(|meta| meta.len().to_string())
                 .unwrap_or_else(|_| "0".to_string());
+            input_paths.push(path);
             input_sizes.push(size);
         }
+
+        let mut log_paths = Vec::with_capacity(block.log_paths.len());
+        for raw_path in &block.log_paths {
+            let (path, root) = resolve_path(&roots, &fallback, raw_path);
+            if let Some(root) = root
+                && state.snakemake_workdir.as_deref() != Some(root.as_path())
+            {
+                state.snakemake_workdir = Some(root);
+                roots = search_roots(&self.inner.outdir, state.snakemake_workdir.as_deref());
+                fallback = state
+                    .snakemake_workdir
+                    .clone()
+                    .unwrap_or_else(|| self.inner.outdir.clone());
+            }
+            log_paths.push(path);
+        }
+        log_paths.sort();
+        log_paths.dedup();
 
         sqlx::query(
             r#"
@@ -358,7 +408,7 @@ impl RunReport {
         Ok(())
     }
 
-    async fn finish_job(&self, state: &ReportState, finished: FinishedJob) -> Result<()> {
+    async fn finish_job(&self, state: &mut ReportState, finished: FinishedJob) -> Result<()> {
         let workflow = state.slurm_job_name.as_deref().unwrap_or_default();
         let updated = sqlx::query(
             r#"
@@ -389,7 +439,7 @@ impl RunReport {
         Ok(())
     }
 
-    async fn fail_block(&self, state: &ReportState, block: JobBlock) -> Result<()> {
+    async fn fail_block(&self, state: &mut ReportState, block: JobBlock) -> Result<()> {
         let Some(snakemake_job_id) = block.jobid else {
             return Ok(());
         };
@@ -617,6 +667,87 @@ fn absolutize(outdir: &Path, path: &str) -> PathBuf {
     } else {
         outdir.join(path)
     }
+}
+
+/// Infer Snakemake's working directory from a SLURM log path.
+///
+/// Snakemake's SLURM executor stores logs under
+/// `<workdir>/.snakemake/slurm_logs/...`. The submission line prints this path
+/// relative to the process working directory, so a path such as
+/// `results/.snakemake/slurm_logs/...` reveals that Snakemake runs from
+/// `<outdir>/results`.
+fn workdir_from_slurm_log(outdir: &Path, raw_path: &str) -> Option<PathBuf> {
+    if raw_path.contains("://") {
+        return None;
+    }
+
+    let path = absolutize(outdir, raw_path);
+    let marker = path.ancestors().find(|ancestor| {
+        ancestor
+            .file_name()
+            .is_some_and(|name| name == ".snakemake")
+    })?;
+    let workdir = marker.parent()?;
+
+    // A bare `.snakemake/...` is already relative to `outdir`; do not replace
+    // the default with an equivalent value.
+    (workdir != outdir).then(|| workdir.to_path_buf())
+}
+
+/// Directories tried when resolving a relative Snakemake path.
+///
+/// The known workdir comes first, then the run directory, then its immediate
+/// subdirectories. The latter lets us recover older reports, where relative
+/// paths were recorded against the run directory while Snakemake actually ran
+/// from a subdirectory such as `results`.
+fn search_roots(outdir: &Path, workdir: Option<&Path>) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Some(workdir) = workdir {
+        roots.push(workdir.to_path_buf());
+    }
+    roots.push(outdir.to_path_buf());
+
+    let mut subdirs = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(outdir) {
+        for entry in entries.flatten() {
+            if entry
+                .file_type()
+                .map(|file_type| file_type.is_dir())
+                .unwrap_or(false)
+            {
+                subdirs.push(entry.path());
+            }
+        }
+    }
+    subdirs.sort();
+    roots.extend(subdirs);
+
+    roots
+}
+
+/// Resolve a path printed by Snakemake to an absolute path.
+///
+/// Returns the path and, when the file was found, the root that matched. The
+/// matched root is remembered as the current Snakemake workdir.
+fn resolve_path(roots: &[PathBuf], fallback: &Path, raw_path: &str) -> (PathBuf, Option<PathBuf>) {
+    if raw_path.contains("://") {
+        return (PathBuf::from(raw_path), None);
+    }
+
+    let path = Path::new(raw_path);
+    if path.is_absolute() {
+        return (path.to_path_buf(), None);
+    }
+
+    for root in roots {
+        let candidate = root.join(path);
+        if candidate.is_file() {
+            return (candidate, Some(root.clone()));
+        }
+    }
+
+    (fallback.join(path), None)
 }
 
 fn strip_ansi(line: &str) -> String {
@@ -856,6 +987,85 @@ mod tests {
         assert_eq!(rows[0].get::<i64, _>("snakemake_job_id"), 42);
         assert_eq!(rows[0].get::<String, _>("rule_name"), "process");
         assert_eq!(rows[0].get::<String, _>("status"), "failed");
+
+        drop(report);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn resolves_job_paths_against_the_slurm_workdir() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(dir.join("results/logs")).unwrap();
+        std::fs::create_dir_all(dir.join("results/.snakemake/slurm_logs/rule_align")).unwrap();
+        std::fs::write(dir.join("results/in.txt"), b"abc").unwrap();
+        let report = test_report(&dir).await;
+
+        report.observe("SLURM run ID: workflow").await;
+        report.observe("rule align:").await;
+        report.observe("    input: in.txt").await;
+        report.observe("    log: logs/job.log").await;
+        report.observe("    jobid: 3").await;
+        report
+            .observe(
+                "Job 3 has been submitted with SLURM jobid 999 \
+                 (log: results/.snakemake/slurm_logs/rule_align/999.log).",
+            )
+            .await;
+        report.observe("Finished jobid: 3 (Rule: align)").await;
+        report.finish().await;
+
+        let row = sqlx::query("SELECT input_paths, input_sizes, log_paths FROM snakemake")
+            .fetch_one(&report.inner.pool)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            row.get::<String, _>("input_paths"),
+            dir.join("results/in.txt").display().to_string()
+        );
+        assert_eq!(row.get::<String, _>("input_sizes"), "3");
+        let log_paths = row.get::<String, _>("log_paths");
+        assert!(log_paths.contains(&dir.join("results/logs/job.log").display().to_string()));
+        assert!(
+            log_paths.contains(
+                &dir.join("results/.snakemake/slurm_logs/rule_align/999.log")
+                    .display()
+                    .to_string()
+            )
+        );
+
+        drop(report);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn discovers_the_workdir_from_existing_inputs() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(dir.join("results/logs")).unwrap();
+        std::fs::write(dir.join("results/in.txt"), b"abc").unwrap();
+        let report = test_report(&dir).await;
+
+        report.observe("SLURM run ID: workflow").await;
+        report.observe("rule align:").await;
+        report.observe("    input: in.txt").await;
+        report.observe("    log: logs/job.log").await;
+        report.observe("    jobid: 7").await;
+        report.finish().await;
+
+        let row = sqlx::query("SELECT input_paths, input_sizes, log_paths FROM snakemake")
+            .fetch_one(&report.inner.pool)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            row.get::<String, _>("input_paths"),
+            dir.join("results/in.txt").display().to_string()
+        );
+        assert_eq!(row.get::<String, _>("input_sizes"), "3");
+        assert!(
+            row.get::<String, _>("log_paths")
+                .contains(&dir.join("results/logs/job.log").display().to_string())
+        );
 
         drop(report);
         let _ = std::fs::remove_dir_all(&dir);

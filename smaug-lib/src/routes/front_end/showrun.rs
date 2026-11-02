@@ -104,6 +104,25 @@ fn list_export_files(attempt: &Attempt) -> Vec<ExportSection> {
     sections
 }
 
+/// URL of the generated execution report, when it exists.
+///
+/// The report is written next to the report database in the run directory and
+/// served through the `run` file scope.
+fn report_url(attempt: &Attempt) -> Option<String> {
+    let path = attempt.run_report_path().with_extension("html");
+    if !path.is_file() {
+        return None;
+    }
+
+    let name = path.file_name()?.to_string_lossy();
+    Some(format!(
+        "/smaug/files/{}/{}/run/{}",
+        attempt.run_id,
+        attempt.attempt_number,
+        urlencode(&name)
+    ))
+}
+
 /// Percent-encodes a single path component for use in a URL.
 fn urlencode(value: &str) -> String {
     let mut encoded = String::with_capacity(value.len());
@@ -223,6 +242,7 @@ pub async fn show_run_get(
                 utils::format_french_date(&attempt.attempt_date.to_offset(local_offset), true);
 
             let exports = list_export_files(&attempt);
+            let report_url = report_url(&attempt);
 
             // Display the template corresponding to the status of the ATTEMPT (not the Run)
             match attempt.status {
@@ -236,6 +256,7 @@ pub async fn show_run_get(
                         attempt=> &attempt,
                         history=> &history,
                         exports=> &exports,
+                        report_url=> &report_url,
                         user=> auth.user,
                     },
                 )),
@@ -249,6 +270,7 @@ pub async fn show_run_get(
                         attempt=> &attempt,
                         history=> &history,
                         exports=> &exports,
+                        report_url=> &report_url,
                         user=> auth.user,
                     },
                 )),
@@ -262,6 +284,7 @@ pub async fn show_run_get(
                         attempt=> &attempt,
                         history=> &history,
                         exports=> &exports,
+                        report_url=> &report_url,
                         user=> auth.user,
                     },
                 )),
@@ -275,6 +298,7 @@ pub async fn show_run_get(
                         attempt=> &attempt,
                         history=> &history,
                         exports=> &exports,
+                        report_url=> &report_url,
                         user=> auth.user,
                         fail_reason=> fail_reason,
                     },

@@ -4,3 +4,4 @@ smaug-lib/target
 *.sif
 Rocket.toml
 documentation/book
+__pycache__/

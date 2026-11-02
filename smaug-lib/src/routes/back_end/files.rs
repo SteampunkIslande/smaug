@@ -14,10 +14,16 @@ use super::logs::can_user_see_run;
 /// Folder exposed by the files API.
 #[derive(Debug, Clone, Copy)]
 pub enum FileScope {
-    /// Curated files listed on the run page.
+    /// Curated files listed on the run page: `<run>/exports-<attempt>`.
     Exports,
-    /// Bulk files such as snakemake logs, which must not be listed on the page.
+    /// Attempt logs written to `{{ logs_dir }}`: `<run>/logs-<attempt>`.
     Logs,
+    /// Any file produced by the attempt under the run directory.
+    ///
+    /// This scope exists for paths recorded by the run report (Snakemake
+    /// logs, inputs, generated HTML reports, ...), whose root is the run
+    /// directory rather than a per-attempt subdirectory.
+    Run,
 }
 
 impl<'a> FromParam<'a> for FileScope {
@@ -27,6 +33,7 @@ impl<'a> FromParam<'a> for FileScope {
         match param {
             "exports" => Ok(Self::Exports),
             "logs" => Ok(Self::Logs),
+            "run" => Ok(Self::Run),
             other => Err(other),
         }
     }
@@ -36,20 +43,25 @@ impl FileScope {
     fn directory(self, attempt: &Attempt) -> PathBuf {
         match self {
             Self::Exports => attempt.exports_dir(),
-            Self::Logs => attempt.outdir(),
+            Self::Logs => attempt.logs_dir(),
+            Self::Run => attempt.outdir(),
         }
     }
 }
 
 /// Serves a file produced by an attempt.
 ///
-/// The analysis directory is laid out as
-/// `<analysis_dir>/run-<run_id>/<scope>-<attempt_number>/...`.
+/// The analysis directory is laid out as:
 ///
-/// `exports` holds the curated files listed on the run page. `logs` holds bulk
-/// files such as snakemake logs: they are served by this route but never listed
-/// on the page, so a pipeline may produce thousands of them without bloating the
-/// HTML.
+/// - `<analysis_dir>/run-<run_id>/exports-<attempt_number>/...` for `exports`;
+/// - `<analysis_dir>/run-<run_id>/logs-<attempt_number>/...` for `logs`;
+/// - `<analysis_dir>/run-<run_id>/...` for `run`.
+///
+/// `exports` holds the curated files listed on the run page. `logs` holds the
+/// attempt logs. `run` is the root used by the execution report, because
+/// Snakemake may write anywhere under the run directory (for example
+/// `<run>/results/.snakemake/slurm_logs/...`). The `run` scope is never used to
+/// list files on the page.
 ///
 /// Paths may be arbitrarily deep. Canonicalization plus the `starts_with` check
 /// keeps `..` and symlinks from escaping the selected directory.
@@ -111,6 +123,7 @@ mod tests {
             Ok(FileScope::Exports)
         ));
         assert!(matches!(FileScope::from_param("logs"), Ok(FileScope::Logs)));
+        assert!(matches!(FileScope::from_param("run"), Ok(FileScope::Run)));
         assert!(FileScope::from_param("other").is_err());
     }
 }
