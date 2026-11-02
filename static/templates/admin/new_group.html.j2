@@ -1,51 +1,38 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Création d'un nouveau groupe{% endblock %}
-
-{% block banner_text %}Création d'un nouveau groupe{% endblock %}
-
-{% block body_attrs %}{% endblock %}
+{% block title %}Nouveau groupe | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
-<form id="new-group" onsubmit="submitForm(event)">
-    <div>
-        <label>Nom du nouveau groupe</label>
-        <input name="new_group_name" type="text">
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Administration · groupes</p>
+    <h1>Nouveau groupe</h1>
+    <p>Créez un groupe d’accès aux formulaires.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/admin/dashboard">{{ ui.icon("arrow-left") }}Tableau de bord</a>
+  </div>
+</header>
+
+<section class="panel form-card">
+  <div class="panel-title">
+    <div>{{ ui.icon("plus", "section-icon") }}<h2>Nom du groupe</h2></div>
+  </div>
+  <form id="new-group-form" class="form">
+    <div class="field">
+      <label for="new-group-name">Nom du nouveau groupe</label>
+      <input id="new-group-name" name="new_group_name" type="text" required>
     </div>
-    <div style="text-align: left; margin-top: 20px;">
-        <a class="btn btn-secondary" href="/smaug/admin/dashboard">Retour au tableau de bord</a>
-        <a class="btn btn-primary" onclick="submitForm(event)">Créer un nouveau groupe</a>
-        <button type="submit" style="display: none;" tabindex="-1" aria-hidden="true"></button>
+    <div class="form-actions">
+      <button id="create-group" class="btn" type="submit">{{ ui.icon("plus") }}Créer le groupe</button>
+      <a class="btn btn-secondary" href="/smaug/admin/dashboard">Annuler</a>
     </div>
-</form>
+  </form>
+</section>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-
-    async function submitForm(event) {
-        if (event) {
-            event.preventDefault();
-        }
-        try {
-            const new_group_name = document.querySelector('input[name="new_group_name"]').value.trim();
-            if (!new_group_name) {
-                showMessage('error', 'Veuillez entrer un nom de groupe.');
-                return;
-            }
-            const response = await fetch(`/smaug/api/newgroup/${encodeURIComponent(new_group_name)}`);
-            const data = await response.json();
-
-            if (isApiSuccess(data)) {
-                showMessage('info', 'Groupe créé avec succès');
-            } else {
-                showMessage('error', getApiMessage(data));
-            }
-        }
-        catch (e) {
-            showMessage('error', e);
-        }
-    }
-
-</script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-new-group.js"></script>
 {% endblock %}

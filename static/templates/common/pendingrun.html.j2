@@ -1,13 +1,20 @@
 {% extends "common/run_base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Run en attente{% endblock %}
-
-{% block banner_text %}Run en attente<br>{{ run.run_name }}{% endblock %}
+{% block title %}Run en attente | {{ run.run_name }}{% endblock %}
 
 {% block content %}
-{% include "common/runinfo.html.j2" %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Analyse · en attente</p>
+    <h1>{{ run.run_name }} - Tentative {{ attempt.attempt_number }}</h1>
+    <p>{{ form.name }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
+  </div>
+</header>
 
-<div style="margin-top: 30px; text-align: left;">
-    <a id="back-to-runs" class="btn btn-secondary" href="/smaug/show/runs">Retour</a>
-</div>
+{% include "common/runinfo.html.j2" %}
+{% include "common/advanced.html.j2" %}
 {% endblock %}

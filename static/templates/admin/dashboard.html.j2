@@ -1,108 +1,102 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Page d'administration{% endblock %}
-
-{% block extra_head %}
-    <script src="/smaug/static/scripts/json_table.js"></script>
-{% endblock %}
-
-{% block banner_text %}Bienvenue, {{ user.username }}{% endblock %}
-
-{% block body_attrs %} onload="init()" onclick="closeDropdowns(event)"{% endblock %}
+{% block title %}Administration | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
-    <div class="dropdown">
-        <button onclick="onDropDown(`users_dropdown`)" class="dropbtn"><span
-                class="material-icons icon-align">account_circle</span> Gestion des utilisateurs</button>
-        <div id="users_dropdown" class="dropdown-content">
-            <a href="/smaug/admin/register">Créer un utilisateur</a>
-            <a href="/smaug/admin/editusers">Editer les utilisateurs</a>
-            <a href="/smaug/admin/groups/new">Nouveau groupe</a>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">SMAUG / Espace administrateur</p>
+    <h1>Administration <span class="heading-dot" aria-hidden="true">.</span></h1>
+    <p>Gérer les accès et les configurations. Superviser les analyses en cours.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/home">{{ ui.icon("arrow-left") }}Retour à l'accueil</a>
+  </div>
+</header>
+
+<section class="section" aria-labelledby="tools-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="tools-title">Gestion de la plateforme</h2>
+      <p>Comptes, groupes et configuration.</p>
+    </div>
+  </div>
+  <div class="tool-grid">
+    <section class="tool-panel" aria-labelledby="users-heading">
+      <div class="tool-heading">
+        <span class="tool-icon">{{ ui.icon("users") }}</span>
+        <div>
+          <h2 id="users-heading">Gestion des utilisateurs</h2>
+          <p>Comptes et groupes d’accès</p>
         </div>
-    </div>
-    <div class="dropdown">
-        <button onclick="onDropDown(`forms_dropdown`)" class="dropbtn"><span
-                class="material-icons icon-align">build</span> Gestion avancée</button>
-        <div id="forms_dropdown" class="dropdown-content">
-            <a href="/smaug/admin/groups">Groupes</a>
-            <a href="/smaug/admin/forms">Formulaires</a>
-            <a href="/smaug/admin/runtime_config">Configuration d'exécution</a>
+      </div>
+      <nav class="action-list" aria-label="Gestion des utilisateurs">
+        <a href="/smaug/admin/register">{{ ui.icon("user-plus") }}<span>Créer un utilisateur</span>{{ ui.icon("chev",
+          "chev") }}</a>
+        <a href="/smaug/admin/editusers">{{ ui.icon("users") }}<span>Éditer les utilisateurs</span>{{ ui.icon("chev",
+          "chev") }}</a>
+        <a href="/smaug/admin/groups/new">{{ ui.icon("plus") }}<span>Nouveau groupe</span>{{ ui.icon("chev", "chev")
+          }}</a>
+      </nav>
+    </section>
+    <section class="tool-panel" aria-labelledby="advanced-heading">
+      <div class="tool-heading">
+        <span class="tool-icon violet">{{ ui.icon("sliders") }}</span>
+        <div>
+          <h2 id="advanced-heading">Gestion avancée</h2>
+          <p>Organisation et configuration des analyses</p>
         </div>
+      </div>
+      <nav class="action-list" aria-label="Gestion avancée">
+        <a href="/smaug/admin/forms">{{ ui.icon("file") }}<span>Formulaires</span>{{ ui.icon("chev", "chev") }}</a>
+        <a href="/smaug/admin/runtime_config">{{ ui.icon("sliders") }}<span>Configuration d’exécution</span>{{
+          ui.icon("chev", "chev") }}</a>
+      </nav>
+    </section>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="supervision-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="supervision-title">Supervision des runs</h2>
+      <p>Exécution et incidents</p>
     </div>
-    <div class="dropdown" style="float:right;">
-        <button onclick="navigateTo(`/smaug/home`)" class="dropbtn"><span
-                class="material-icons icon-align">home</span></button>
-    </div>
+  </div>
+  <div class="grid-2">
+    <section class="panel run-panel" aria-labelledby="running-heading">
+      <div class="panel-title">
+        <div><span class="state-badge state-running" aria-hidden="true">●</span>
+          <h2 id="running-heading">Runs en cours</h2>
+        </div>
+        <a href="/smaug/show/runs?status=Running" class="text-link">Tous les runs {{ ui.icon("arrow") }}</a>
+      </div>
+      <div id="running-runs-table" class="table-scroll" aria-live="polite"></div>
+      <p id="running-runs-overflow" class="panel-footnote" hidden>Plus de 10 runs en cours. <a
+          href="/smaug/show/runs?status=Running">Afficher la liste complète</a></p>
+    </section>
+    <section class="panel run-panel" aria-labelledby="failure-heading">
+      <div class="panel-title">
+        <div><span class="state-badge state-failed" aria-hidden="true">●</span>
+          <h2 id="failure-heading">Runs en échec</h2>
+        </div>
+        <a href="/smaug/show/runs?status=Failure" class="text-link">Tous les runs {{ ui.icon("arrow") }}</a>
+      </div>
+      <div id="failure-runs-table" class="table-scroll" aria-live="polite"></div>
+      <p id="failure-runs-overflow" class="panel-footnote" hidden>Plus de 10 runs en échec. <a
+          href="/smaug/show/runs?status=Failure">Afficher la liste complète</a></p>
+    </section>
+  </div>
+</section>
 
-    <h1>Runs en cours</h1>
-
-    <div id="running-runs-table"></div>
-    <p id="running-runs-overflow" style="display:none">Plus de 10 runs en cours, <a
-            href="/smaug/show/runs?status=Running">cliquez ici</a> pour les voir</p>
-
-    <h1>Runs en échec</h1>
-
-    <div id="failure-runs-table"></div>
-    <p id="failure-runs-overflow" style="display:none">Plus de 10 runs en échec, <a
-            href="/smaug/show/runs?status=Failure">cliquez ici</a> pour les voir</p>
-
+<footer class="footer">
+  <span>SMAUG · Administration de la plateforme</span>
+  <span>Les accès restent contrôlés par l’application SMAUG.</span>
+</footer>
 {% endblock %}
 
-{% block extra_js %}
-    <script>
-
-        async function loadRuns(status, emptyMsg = "Aucune donnée à afficher.") {
-            try {
-                // Display the first ten runs with the status `status`
-                const response = await fetch(`/smaug/api/listruns?page=1&page_size=10&status=${encodeURIComponent(status)}`);
-                const json = await response.json();
-                if (isApiSuccess(json)) {
-                    const data = getApiData(json);
-                    if (data.table.length > 0) {
-                        generateJsonTable(data, `${status.toLowerCase()}-runs-table`);
-                    } else {
-                        document.getElementById(`${status.toLowerCase()}-runs-table`).innerHTML = `<p>${emptyMsg}</p>`;
-                    }
-
-                    if (data.pagination) {
-                        const totalPages = data.pagination.total_pages;
-                        if (totalPages > 1) {
-                            const overflow_elem = document.getElementById(`${status.toLowerCase()}-runs-overflow`);
-                            overflow_elem.style.display = "block";
-                        }
-                    }
-                } else {
-                    showMessage("error", getApiMessage(json) || "Erreur inconnue");
-                }
-            } catch (error) {
-                showMessage('error', error);
-            }
-        }
-
-        function onDropDown(element) {
-            document.getElementById(element).classList.toggle("show");
-        }
-
-        function navigateTo(uri) {
-            window.location.href = uri;
-        }
-
-        function closeDropdowns(event) {
-            if (!event.target.matches('.dropbtn')) {
-                var dropdowns = document.getElementsByClassName("dropdown-content");
-                var i;
-                for (i = 0; i < dropdowns.length; i++) {
-                    var openDropdown = dropdowns[i];
-                    if (openDropdown.classList.contains('show')) {
-                        openDropdown.classList.remove('show');
-                    }
-                }
-            }
-        }
-
-        async function init() {
-            await loadRuns("Running", "Aucun run en cours");
-            await loadRuns("Failure", "Aucun run en échec");
-        }
-    </script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-dashboard.js"></script>
 {% endblock %}

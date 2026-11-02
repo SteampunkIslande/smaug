@@ -1,0 +1,760 @@
+#!/usr/bin/env python3
+"""Generate a standalone HTML report from a smaug run report database.
+
+The report groups Snakemake jobs by rule. For each rule, it lists the jobs,
+their wildcard values and clickable links to the log files served by the smaug
+API.
+"""
+
+from __future__ import annotations
+
+import argparse
+import html
+import os
+import re
+import sqlite3
+import sys
+from collections import Counter
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import quote
+
+DEFAULT_API_BASE = "/smaug/files"
+RUN_DIR_PATTERN = re.compile(r"^run-\d{8}$")
+
+STATUS_LABELS = {
+    "running": "en cours",
+    "submitted": "soumis",
+    "completed": "terminé",
+    "failed": "échec",
+    "unknown": "inconnu",
+}
+
+KNOWN_STATUSES = frozenset(STATUS_LABELS)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Génère un rapport HTML à partir d'une base de rapport d'exécution "
+            "smaug."
+        )
+    )
+    parser.add_argument("--run", type=int, required=True, help="identifiant du run")
+    parser.add_argument(
+        "--attempt",
+        type=int,
+        required=True,
+        help="numéro de la tentative",
+    )
+    parser.add_argument(
+        "--db",
+        required=True,
+        help=(
+            "fichier sqlite du rapport, ou dossier d'analyse contenant "
+            "run-<run>/smaug-run-report-attempt-<n>.db"
+        ),
+    )
+    parser.add_argument(
+        "--outdir",
+        help=(
+            "dossier de sortie de la tentative ; déduit du chemin de la base "
+            "par défaut"
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        help="fichier HTML à écrire ; par défaut, à côté de la base",
+    )
+    parser.add_argument(
+        "--api-base",
+        default=DEFAULT_API_BASE,
+        help=f"préfixe des liens de logs (par défaut : {DEFAULT_API_BASE})",
+    )
+    return parser.parse_args()
+
+
+def escape(value: object) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def find_run_dir(db_path: Path) -> Path:
+    for parent in db_path.resolve().parents:
+        if RUN_DIR_PATTERN.fullmatch(parent.name):
+            return parent
+    return db_path.parent.resolve()
+
+
+def resolve_paths(
+    db_arg: str,
+    run_id: int,
+    attempt: int,
+    outdir_arg: str | None,
+) -> tuple[Path, Path]:
+    given = Path(db_arg).expanduser()
+
+    if given.is_dir():
+        run_dir = given / f"run-{run_id:08d}"
+        db_path = run_dir / f"smaug-run-report-attempt-{attempt}.db"
+        if not db_path.is_file():
+            direct = given / f"smaug-run-report-attempt-{attempt}.db"
+            if direct.is_file():
+                db_path = direct
+        if not db_path.is_file():
+            raise FileNotFoundError(
+                "Rapport d'exécution introuvable. Chemins essayés : "
+                f"{db_path} et {given / f'smaug-run-report-attempt-{attempt}.db'}"
+            )
+    elif given.is_file():
+        db_path = given
+    else:
+        raise FileNotFoundError(f"Base introuvable : {given}")
+
+    outdir = Path(outdir_arg).expanduser() if outdir_arg else find_run_dir(db_path)
+    return db_path, outdir.resolve()
+
+
+def load_rows(db_path: Path) -> list[sqlite3.Row]:
+    uri = f"{db_path.resolve().as_uri()}?mode=ro"
+    connection = sqlite3.connect(uri, uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        return connection.execute(
+            """
+            SELECT slurm_job_name, slurm_job_id, snakemake_job_id, rule_name,
+                   status, log_paths, wildcards
+            FROM snakemake
+            ORDER BY rule_name COLLATE NOCASE, snakemake_job_id
+            """
+        ).fetchall()
+    finally:
+        connection.close()
+
+
+def split_values(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def status_of(row: sqlite3.Row) -> str:
+    status = (row["status"] or "").strip().lower()
+    return status if status in KNOWN_STATUSES else "unknown"
+
+
+def status_badge(status: str) -> str:
+    label = STATUS_LABELS.get(status, STATUS_LABELS["unknown"])
+    return f'<span class="status status-{status}">{escape(label)}</span>'
+
+
+def relative_log_path(raw_path: str, outdir: Path) -> str | None:
+    """Return a path relative to the attempt output directory, if possible."""
+    path = Path(raw_path)
+    if path.is_absolute():
+        try:
+            relative = Path(
+                os.path.relpath(
+                    os.path.normpath(str(path)),
+                    os.path.normpath(str(outdir)),
+                )
+            )
+        except ValueError:
+            return None
+    else:
+        relative = path
+
+    relative_str = relative.as_posix()
+    if relative_str in ("", ".") or relative_str == "..":
+        return None
+    if relative_str.startswith("../"):
+        return None
+    return relative_str
+
+
+def render_logs(
+    raw_paths: str | None,
+    *,
+    run_id: int,
+    attempt: int,
+    outdir: Path,
+    api_base: str,
+) -> str:
+    links: list[str] = []
+
+    for raw_path in split_values(raw_paths):
+        if "://" in raw_path:
+            href = raw_path
+            label = raw_path
+        else:
+            relative = relative_log_path(raw_path, outdir)
+            if relative is None:
+                href = None
+                label = raw_path
+            else:
+                href = (
+                    f"{api_base}/{run_id}/{attempt}/logs/"
+                    f"{quote(relative, safe='/')}"
+                )
+                label = relative
+
+        if href is not None:
+            links.append(
+                f'<a class="log-link" href="{escape(href)}" target="_blank" '
+                f'rel="noopener" title="{escape(raw_path)}">{escape(label)}</a>'
+            )
+        else:
+            links.append(
+                f'<span class="log-missing" title="{escape(raw_path)}">'
+                f"{escape(label)}</span>"
+            )
+
+    if not links:
+        return '<span class="muted">—</span>'
+    return '<div class="log-list">' + "".join(
+        f"<div>{link}</div>" for link in links
+    ) + "</div>"
+
+
+def render_wildcards(raw_wildcards: str | None) -> str:
+    values = split_values(raw_wildcards)
+    if not values:
+        return '<span class="muted">—</span>'
+    return " ".join(f'<span class="chip">{escape(value)}</span>' for value in values)
+
+
+def render_summary(status_counts: Counter[str], total_jobs: int, total_rules: int) -> str:
+    badges = [
+        f'<span class="summary-badge"><strong>{total_jobs}</strong> job(s)</span>',
+        f'<span class="summary-badge"><strong>{total_rules}</strong> règle(s)</span>',
+    ]
+    for status in ("completed", "failed", "running", "submitted", "unknown"):
+        count = status_counts.get(status, 0)
+        if count:
+            badges.append(
+                f'<span class="summary-badge status-{status}">'
+                f"<strong>{count}</strong> {escape(STATUS_LABELS[status])}</span>"
+            )
+    return "".join(badges)
+
+
+def render_rule_panel(
+    name: str,
+    panel_id: str,
+    jobs: list[sqlite3.Row],
+    *,
+    run_id: int,
+    attempt: int,
+    outdir: Path,
+    api_base: str,
+) -> str:
+    status_counts = Counter(status_of(row) for row in jobs)
+    summary = (
+        f"{len(jobs)} job(s) · {status_counts.get('completed', 0)} terminé(s) · "
+        f"{status_counts.get('failed', 0)} en échec"
+    )
+
+    rows_html: list[str] = []
+    for row in jobs:
+        jobid = row["snakemake_job_id"]
+        jobid_html = "—" if jobid is None else f"#{jobid}"
+        workflow = (row["slurm_job_name"] or "").strip()
+        workflow_html = (
+            f'<div class="muted small" title="{escape(workflow)}">'
+            f"workflow : <code>{escape(workflow)}</code></div>"
+            if workflow
+            else ""
+        )
+
+        slurm_job_id = (row["slurm_job_id"] or "").strip()
+        slurm_html = (
+            f"<code>{escape(slurm_job_id)}</code>"
+            if slurm_job_id
+            else '<span class="muted">—</span>'
+        )
+
+        rows_html.append(
+            "<tr>"
+            f'<td><span class="jobid">{escape(jobid_html)}</span>{workflow_html}</td>'
+            f"<td>{status_badge(status_of(row))}</td>"
+            f"<td>{slurm_html}</td>"
+            f"<td>{render_wildcards(row['wildcards'])}</td>"
+            f"<td>{render_logs(row['log_paths'], run_id=run_id, attempt=attempt, outdir=outdir, api_base=api_base)}</td>"
+            "</tr>"
+        )
+
+    return f"""
+      <section class="rule-panel" id="{panel_id}">
+        <div class="panel-head">
+          <div>
+            <h2>{escape(name)}</h2>
+            <p class="muted">{escape(summary)}</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>Statut</th>
+                <th>Slurm</th>
+                <th>Wildcards</th>
+                <th>Logs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {''.join(rows_html)}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    """
+
+
+def build_html(
+    rows: list[sqlite3.Row],
+    *,
+    run_id: int,
+    attempt: int,
+    outdir: Path,
+    db_path: Path,
+    api_base: str,
+) -> str:
+    rules: dict[str, list[sqlite3.Row]] = {}
+    for row in rows:
+        name = (row["rule_name"] or "").strip() or "(règle inconnue)"
+        rules.setdefault(name, []).append(row)
+
+    rule_names = sorted(
+        rules,
+        key=lambda name: (name.startswith("("), name.casefold()),
+    )
+
+    status_counts: Counter[str] = Counter(status_of(row) for row in rows)
+    total_jobs = len(rows)
+    total_rules = len(rule_names)
+
+    buttons: list[str] = []
+    panels: list[str] = []
+
+    for index, name in enumerate(rule_names):
+        jobs = sorted(
+            rules[name],
+            key=lambda row: (
+                (row["slurm_job_name"] or ""),
+                row["snakemake_job_id"]
+                if row["snakemake_job_id"] is not None
+                else -1,
+            ),
+        )
+        panel_id = f"rule-{index}"
+        failed = sum(1 for row in jobs if status_of(row) == "failed")
+        failure_marker = (
+            f'<span class="fail-dot" title="{failed} job(s) en échec">●</span>'
+            if failed
+            else ""
+        )
+
+        buttons.append(
+            f'<button class="rule-button" type="button" data-target="{panel_id}" '
+            f'data-name="{escape(name.lower())}">'
+            f'<span class="rule-name">{escape(name)}</span>'
+            f'<span class="rule-meta"><span class="count">{len(jobs)}</span>'
+            f"{failure_marker}</span></button>"
+        )
+        panels.append(
+            render_rule_panel(
+                name,
+                panel_id,
+                jobs,
+                run_id=run_id,
+                attempt=attempt,
+                outdir=outdir,
+                api_base=api_base,
+            )
+        )
+
+    if buttons:
+        sidebar_rules = "\n".join(buttons)
+        main_content = "\n".join(panels)
+    else:
+        sidebar_rules = ""
+        main_content = """
+        <section class="rule-panel active">
+          <div class="empty-state">
+            <h2>Aucun job enregistré</h2>
+            <p class="muted">La table <code>snakemake</code> de ce rapport est vide.</p>
+          </div>
+        </section>
+        """
+
+    generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    summary = render_summary(status_counts, total_jobs, total_rules)
+
+    return f"""<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rapport d'exécution — run {run_id}, tentative {attempt}</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #1f2933;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --green: #15803d;
+      --green-soft: #dcfce7;
+      --red: #b91c1c;
+      --red-soft: #fee2e2;
+      --amber: #b45309;
+      --amber-soft: #fef3c7;
+      --blue-soft: #e0f2fe;
+      --blue: #0369a1;
+      --gray-soft: #f3f4f6;
+      --shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.06);
+    }}
+
+    * {{ box-sizing: border-box; }}
+    html, body {{ margin: 0; }}
+    body {{
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.45;
+    }}
+
+    .topbar {{
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1.5rem;
+      padding: 1.1rem 1.5rem;
+      background: #111827;
+      color: #f9fafb;
+    }}
+    .topbar h1 {{ margin: 0; font-size: 1.35rem; letter-spacing: -0.01em; }}
+    .subtitle {{ margin: .2rem 0 0; color: #cbd5e1; font-size: .9rem; }}
+    .summary {{ display: flex; flex-wrap: wrap; gap: .4rem; justify-content: flex-end; }}
+    .summary-badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      padding: .28rem .6rem;
+      border-radius: 999px;
+      border: 1px solid rgb(255 255 255 / .16);
+      background: rgb(255 255 255 / .1);
+      font-size: .78rem;
+    }}
+    .summary-badge strong {{ font-size: .86rem; }}
+    .summary-badge.status-completed {{ background: var(--green-soft); color: var(--green); border-color: transparent; }}
+    .summary-badge.status-failed {{ background: var(--red-soft); color: var(--red); border-color: transparent; }}
+    .summary-badge.status-running {{ background: var(--amber-soft); color: var(--amber); border-color: transparent; }}
+    .summary-badge.status-submitted {{ background: var(--blue-soft); color: var(--blue); border-color: transparent; }}
+    .summary-badge.status-unknown {{ background: var(--gray-soft); color: var(--muted); border-color: transparent; }}
+
+    .layout {{
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      min-height: calc(100vh - 90px);
+    }}
+
+    .sidebar {{
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      max-height: calc(100vh - 2rem);
+      overflow: auto;
+      padding: 1rem;
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+    }}
+    .search label {{
+      display: block;
+      margin-bottom: .35rem;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }}
+    .search input {{
+      width: 100%;
+      padding: .55rem .7rem;
+      border: 1px solid var(--line);
+      border-radius: .55rem;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: .88rem;
+    }}
+    .search input:focus {{
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }}
+
+    #rules {{ display: flex; flex-direction: column; gap: .15rem; margin-top: .75rem; }}
+    .rule-button {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+      width: 100%;
+      padding: .58rem .65rem;
+      border: 0;
+      border-radius: .55rem;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }}
+    .rule-button[hidden] {{ display: none; }}
+    .rule-button:hover {{ background: var(--gray-soft); }}
+    .rule-button.active {{ background: var(--accent-soft); color: #1e3a8a; font-weight: 600; }}
+    .rule-name {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .rule-meta {{ display: flex; flex: none; align-items: center; gap: .35rem; }}
+    .count {{
+      padding: .05rem .4rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--gray-soft);
+      color: var(--muted);
+      font-size: .72rem;
+    }}
+    .rule-button.active .count {{ background: #fff; border-color: var(--accent-soft); }}
+    .fail-dot {{ color: var(--red); font-size: .7rem; }}
+
+    main {{ min-width: 0; padding: 1.5rem; }}
+    .rule-panel {{ display: none; }}
+    .rule-panel.active {{ display: block; }}
+    .panel-head {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }}
+    .panel-head h2 {{ margin: 0; font-size: 1.25rem; letter-spacing: -0.01em; }}
+    .panel-head p {{ margin: .2rem 0 0; }}
+
+    .table-wrap {{
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: .75rem;
+      box-shadow: var(--shadow);
+    }}
+    table {{ width: 100%; border-collapse: collapse; font-size: .9rem; }}
+    thead th {{
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: .65rem .8rem;
+      border-bottom: 1px solid var(--line);
+      background: #f9fafb;
+      color: var(--muted);
+      font-size: .72rem;
+      letter-spacing: .04em;
+      text-align: left;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }}
+    tbody td {{ padding: .7rem .8rem; border-bottom: 1px solid var(--line); vertical-align: top; }}
+    tbody tr:last-child td {{ border-bottom: 0; }}
+    tbody tr:hover {{ background: #fafafa; }}
+    .jobid {{ font-weight: 600; }}
+    code {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .82em;
+    }}
+    .muted {{ color: var(--muted); }}
+    .small {{ font-size: .76rem; overflow-wrap: anywhere; }}
+
+    .status {{
+      display: inline-block;
+      padding: .12rem .5rem;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }}
+    .status-running {{ background: var(--amber-soft); color: var(--amber); }}
+    .status-submitted {{ background: var(--blue-soft); color: var(--blue); }}
+    .status-completed {{ background: var(--green-soft); color: var(--green); }}
+    .status-failed {{ background: var(--red-soft); color: var(--red); }}
+    .status-unknown {{ background: var(--gray-soft); color: var(--muted); }}
+
+    .chip {{
+      display: inline-block;
+      margin: .1rem .2rem .1rem 0;
+      padding: .1rem .45rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--gray-soft);
+      font-size: .78rem;
+    }}
+    .log-list {{ display: flex; flex-direction: column; gap: .25rem; }}
+    .log-link {{ color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }}
+    .log-link:hover {{ text-decoration: underline; }}
+    .log-missing {{ color: var(--muted); overflow-wrap: anywhere; }}
+
+    .empty-state {{
+      padding: 3rem 1.5rem;
+      background: var(--panel);
+      border: 1px dashed var(--line);
+      border-radius: .75rem;
+      text-align: center;
+    }}
+    .empty-state h2 {{ margin-top: 0; }}
+
+    .footer {{
+      padding: 1rem 1.5rem 1.5rem;
+      color: var(--muted);
+      font-size: .75rem;
+    }}
+
+    @media (max-width: 820px) {{
+      .topbar {{ align-items: flex-start; flex-direction: column; }}
+      .summary {{ justify-content: flex-start; }}
+      .layout {{ display: block; }}
+      .sidebar {{
+        position: static;
+        max-height: none;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }}
+      #rules {{
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: .25rem;
+      }}
+      .rule-button {{ flex: none; width: auto; white-space: nowrap; }}
+      .rule-name {{ max-width: 18rem; }}
+      main {{ padding: 1rem; }}
+    }}
+
+    @media print {{
+      .topbar {{ background: #fff; color: #000; }}
+      .subtitle {{ color: #444; }}
+      .summary-badge {{ border-color: #ccc; background: #fff; }}
+      .sidebar {{ display: none; }}
+      .layout {{ display: block; }}
+      .rule-panel {{ display: block !important; margin-bottom: 2rem; break-inside: avoid; }}
+      .table-wrap {{ box-shadow: none; }}
+    }}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Rapport d'exécution</h1>
+      <p class="subtitle">Run {run_id} · tentative {attempt} · {escape(outdir)}</p>
+    </div>
+    <div class="summary">{summary}</div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="search">
+        <label for="rule-search">Règles</label>
+        <input id="rule-search" type="search" placeholder="Rechercher une règle…" autocomplete="off">
+      </div>
+      <nav id="rules" aria-label="Règles">
+        {sidebar_rules}
+      </nav>
+      <p id="no-match" class="muted small" hidden>Aucune règle ne correspond.</p>
+    </aside>
+
+    <main id="content">
+      {main_content}
+    </main>
+  </div>
+
+  <footer class="footer">
+    Généré le {escape(generated_at)} depuis <code>{escape(db_path)}</code>.
+  </footer>
+
+  <script>
+    (() => {{
+      const buttons = Array.from(document.querySelectorAll(".rule-button"));
+      const panels = Array.from(document.querySelectorAll(".rule-panel"));
+      const search = document.getElementById("rule-search");
+      const noMatch = document.getElementById("no-match");
+
+      const activate = (target) => {{
+        for (const button of buttons) {{
+          button.classList.toggle("active", button.dataset.target === target);
+        }}
+        for (const panel of panels) {{
+          panel.classList.toggle("active", panel.id === target);
+        }}
+      }};
+
+      for (const button of buttons) {{
+        button.addEventListener("click", () => activate(button.dataset.target));
+      }}
+
+      search.addEventListener("input", () => {{
+        const term = search.value.trim().toLocaleLowerCase();
+        for (const button of buttons) {{
+          const name = button.dataset.name || "";
+          button.hidden = Boolean(term) && !name.includes(term);
+        }}
+
+        const visible = buttons.filter((button) => !button.hidden);
+        noMatch.hidden = visible.length > 0;
+
+        if (visible.length === 0) {{
+          for (const button of buttons) button.classList.remove("active");
+          for (const panel of panels) panel.classList.remove("active");
+          return;
+        }}
+
+        if (!visible.some((button) => button.classList.contains("active"))) {{
+          activate(visible[0].dataset.target);
+        }}
+      }});
+
+      if (buttons.length > 0) activate(buttons[0].dataset.target);
+    }})();
+  </script>
+</body>
+</html>
+"""
+
+
+def main() -> int:
+    args = parse_args()
+    api_base = args.api_base.rstrip("/") or DEFAULT_API_BASE
+
+    try:
+        db_path, outdir = resolve_paths(args.db, args.run, args.attempt, args.outdir)
+        rows = load_rows(db_path)
+    except (FileNotFoundError, sqlite3.Error) as exc:
+        print(f"Erreur : {exc}", file=sys.stderr)
+        return 2
+
+    document = build_html(
+        rows,
+        run_id=args.run,
+        attempt=args.attempt,
+        outdir=outdir,
+        db_path=db_path,
+        api_base=api_base,
+    )
+
+    output = Path(args.output).expanduser() if args.output else db_path.with_suffix(".html")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(document, encoding="utf-8")
+    print(f"Rapport écrit dans {output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

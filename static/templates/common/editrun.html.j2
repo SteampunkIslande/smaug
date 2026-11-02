@@ -1,257 +1,76 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-
-{% block title %}{%- if run %}Editer un run{% else %}Nouveau Run{% endif %}{% endblock %}
-
-{% block banner_text %}
-{% if run %}Editer le run {{ run.run_name }}
-{% else %}Nouveau Run
-{% endif %}
-<br><span class="banner-text">{{ form.name }}{% if form.branch %} (sur la branche {{ form.branch }}){% endif %}</span>
-{%endblock %}
-
-{% block body_attrs %}onload="init()"{% endblock %}
+{% block title %}{% if run %}Modifier un run{% else %}Nouveau run{% endif %} | SMAUG{% endblock %}
+{% block body_class %}run-page{% endblock %}
 
 {% block content %}
-<h2>{% if run %}Edition du run {{ run.run_name }}{% else %}Déclarer un nouveau run{% endif %}</h2>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">{% if run %}Édition{% else %}Nouvelle analyse{% endif %}</p>
+    <h1>{% if run %}Modifier le run{% else %}Déclarer un nouveau run{% endif %}</h1>
+    <p>{{ form.name }}{% if form.branch %} · branche {{ form.branch }}{% endif %}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="{% if run %}/smaug/show/run/{{ run.run_id }}{% else %}/smaug/home{% endif %}">{{ ui.icon("arrow-left") }}Retour</a>
+  </div>
+</header>
 
-<form id="{% if run %}editrun-form{% else %}newrun-form{% endif %}" class="form-vertical" style="margin: 1em auto;">
+<div class="grid-2">
+  <section class="panel" aria-labelledby="form-title">
+    <div class="panel-title">
+      <div>{{ ui.icon("flask", "section-icon") }}<h2 id="form-title">Paramètres</h2></div>
+    </div>
 
-    {% if run %}
-    <input type="hidden" id="run_id" value="{{ run.run_id }}">
-    {% endif %}
-
-    <div>
-        <label for="run_name">Nom du run:</label>
+    <form id="run-form" class="form">
+      <div class="field">
+        <label for="run-name">Nom du run</label>
         {% if run %}
-        <span id="run_name" style="font-weight: bold;">{{ run.run_name }}</span>
+        <input id="run-name" type="text" value="{{ run.run_name }}" readonly>
         {% else %}
-        <input type="text" id="run_name" required>
+        <input id="run-name" type="text" name="run_name" placeholder="Ex. analyse-2026-001" required>
         {% endif %}
+      </div>
+
+      {% if form.description %}
+      <p class="field-help">{{ form.description }}</p>
+      {% endif %}
+
+      {% if warning %}
+      <p class="alert alert--warning">{{ warning }}</p>
+      {% endif %}
+
+      <h2>Variables du formulaire</h2>
+      <div id="form-variables" class="variables" aria-live="polite">
+        <p class="empty-state">Chargement des variables…</p>
+      </div>
+
+      <div class="form-actions">
+        <button id="save-run" class="btn" type="submit">{{ ui.icon("save") }}{% if run %}Enregistrer les modifications{% else %}Soumettre le run{% endif %}</button>
+        <a class="btn btn-secondary" href="{% if run %}/smaug/show/run/{{ run.run_id }}{% else %}/smaug/home{% endif %}">Annuler</a>
+      </div>
+    </form>
+  </section>
+
+  <aside class="panel">
+    <div class="panel-title">
+      <div>{{ ui.icon("info", "section-icon") }}<h2>Résumé</h2></div>
     </div>
+    <dl class="run-meta">
+      <div class="info-row"><dt>Formulaire</dt><dd>{{ form.name }}</dd></div>
+      <div class="info-row"><dt>Branche</dt><dd>{{ form.branch | default("—") }}</dd></div>
+      <div class="info-row"><dt>Fichier</dt><dd>{{ form.file_path | default("—") }}</dd></div>
+      <div class="info-row"><dt>Exécution</dt><dd>{{ form.exec | default(form.script_name | default("—")) }}</dd></div>
+    </dl>
+    <p class="panel-footnote">Les variables marquées comme fichier sont envoyées sur le serveur au moment de leur sélection.</p>
+  </aside>
+</div>
 
-    {% if form.description %}
-    <p>{{ form.description }}</p>
-    {% endif %}
-
-    {% if warning %}
-    <div class="warning-msg">{{ warning }}</div>
-    {% endif %}
-
-    <h3>Variables du formulaire</h3>
-    <div id="form-variables">
-        {% for var in user_defined_vars %}
-        {{ var | safe }}
-        {% endfor %}
-    </div>
-
-    <div style="text-align: left; margin-top: 20px;">
-        {% if run %}
-        <a id="back-to-runs" class="btn btn-secondary" href="/smaug/show/run/{{ run.run_id }}">Retour</a>
-        <a id="save-changes" onclick="handleSubmit()" class="btn btn-primary">Enregistrer les modifications</a>
-        {% else %}
-        <a class="btn btn-secondary" href="/smaug/home">Retour</a>
-        <a class="btn btn-primary" onclick="handleSubmit()">Soumettre</a>
-        {% endif %}
-    </div>
-</form>
+<script type="application/json" id="page-data">
+{% if run %}{{ {"form": form, "user": user, "run": run} | tojson }}{% else %}{{ {"form": form, "user": user, "run": null} | tojson }}{% endif %}
+</script>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-    const form = {{ form | tojson }};
-    const currentUser = {{ user | tojson }};
-    {% if run %}
-    const currentRun = {{ run | tojson }};
-    {% else %}
-    const currentRun = null;
-    {% endif %}
-
-    async function init() {
-        const dynamicSelects = document.querySelectorAll('select[data-source]');
-        const fetchPromises = [];
-
-        // 1. Fetch and initialize all URL-based lists concurrently
-        dynamicSelects.forEach(select => {
-            const url = select.dataset.source;
-            const varname = select.id;
-            let currentValue = null;
-
-            // Check if we are editing an existing run and have a saved value for this field
-            if (currentRun && currentRun.user_defined_vars) {
-                // Adjust if your user_defined_vars structure is an array instead of an object map
-                currentValue = currentRun.user_defined_vars[varname];
-            }
-
-            fetchPromises.push(initListVarFromURL(select, url, currentValue));
-        });
-
-        await Promise.all(fetchPromises);
-
-        // 2. Pre-fill standard text, date, and static list inputs (if editing a run)
-        if (currentRun && currentRun.user_defined_vars) {
-            for (const [key, value] of Object.entries(currentRun.user_defined_vars)) {
-                const input = document.getElementById(key);
-                // Skip the dynamic selects since we just handled them asynchronously
-                // and skip file inputs: setting .value on a file input throws DOMException
-                if (input && !input.hasAttribute('data-source') && input.type !== 'file') {
-                    input.value = value;
-                }
-            }
-        }
-    }
-
-    async function initListVarFromURL(selectElement, url, currentValue) {
-        try {
-
-            selectElement.innerHTML = '<option value="" disabled selected>Chargement...</option>';
-
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-            selectElement.innerHTML = ''; // Clear the loading state
-
-            // Populate options. Handles both flat strings arrays ["A", "B"] 
-            // and object arrays [{value: "A", label: "Alpha"}]
-            data.forEach(item => {
-                const opt = document.createElement('option');
-                if (typeof item === 'object' && item !== null) {
-                    opt.value = item.value || item.id || item.name;
-                    opt.text = item.label || item.name || item.value;
-                } else {
-                    opt.value = item;
-                    opt.text = item;
-                }
-                selectElement.appendChild(opt);
-            });
-
-            // Select the previously saved value if we are editing
-            if (currentValue !== null && currentValue !== undefined) {
-                selectElement.value = currentValue;
-            }
-
-        } catch (error) {
-            console.error(`Erreur de chargement pour ${selectElement.id}:`, error);
-            selectElement.innerHTML = '<option value="" disabled>Erreur de chargement</option>';
-        }
-    }
-
-    async function collectFormVariables() {
-
-        // Assume the user changed nothing to previously user_defined_vars
-        const variables = currentRun ? currentRun.user_defined_vars : {};
-        const container = document.getElementById('form-variables');
-
-        if (!container) {
-            return variables;
-        }
-
-        // Grab all standard inputs and selects generated by your Rust code
-        const elements = container.querySelectorAll('input, select');
-
-        for (const el of elements) {
-            // Use the 'name' attribute
-            const key = el.name;
-            if (!key) continue;
-
-            // Handle different input types
-            if (el.type === 'file') {
-                if (el.files && el.files.length > 0) {
-                    const file = el.files[0];
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('file_name_base', file.name);
-                    const response = await fetch('/smaug/api/upload', { method: 'POST', body: formData });
-                    const json = await response.json();
-                    if (!isApiSuccess(json)) {
-                        throw new Error(`Échec de l'envoi de ${key} : ${json.error || response.statusText}`);
-                    }
-                    else {
-                        variables[key] = getApiData(json);
-                    }
-                }
-                // Unless it has been defined at some point, let's define it as empty string
-                if (!variables[key]) {
-                    variables[key] = "";
-                }
-            } else {
-                // For text, date, and select elements, .value works perfectly
-                variables[key] = el.value;
-            }
-        }
-
-        return variables;
-    }
-
-    async function handleSubmit() {
-
-        try {
-            const userDefinedVars = await collectFormVariables();
-            {% if run %}
-            const payload = {
-                ...currentRun,
-                user_defined_vars: userDefinedVars
-            };
-            const endpoint = '/smaug/api/editrun';
-            {% else %}
-            const run_name = document.getElementById('run_name').value;
-            if (!run_name) {
-                showMessage("error", "Le nom du run est obligatoire.");
-                return;
-            }
-            if (!form.file_path || !form.branch) {
-                showMessage("error", "Formulaire incomplet: branche ou fichier manquant.");
-                return;
-            }
-            const payload = {
-                user_id: currentUser.id,
-                run_name: run_name,
-                user_defined_vars: userDefinedVars,
-                form_id: "GitBranchAndPath",
-                file_path: form.file_path,
-                branch: form.branch,
-                creation_date: null,
-                status: "Idle",
-                attempt_count: 0
-            };
-            const endpoint = '/smaug/api/newrun';
-            {% endif %}
-
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (response.status !== 200) {
-                // The status may be a 4xx (invalid form, non-editable run): the
-                // reason is in the Failure payload, next to the status code.
-                const message = getApiMessage(data);
-                throw new Error(message || response.statusText || 'Erreur lors de la sauvegarde du run.');
-            }
-
-            // Assume isApiSuccess, getApiData, and getApiMessage are defined globally
-            if (isApiSuccess(data)) {
-                {% if run %}
-                let new_url = "/smaug/api/redirect?target_url=/smaug/show/run/{{ run.run_id }}";
-                {% else %}
-                let new_url = "/smaug/api/redirect?target_url=/smaug/show/run/" + getApiData(data).run_id;
-                {% endif %}
-                new_url += "&title=" + encodeURIComponent("Succès") +
-                    "&message=" + encodeURIComponent(getApiData(data).message) +
-                    "&seconds=5";
-                window.location.href = new_url;
-            } else {
-                showMessage("error", getApiMessage(data));
-            }
-        } catch (error) {
-            showMessage("error", error);
-        }
-    }
-</script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/editrun.js"></script>
 {% endblock %}

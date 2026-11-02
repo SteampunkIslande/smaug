@@ -41,6 +41,7 @@ pub async fn runtime_config_page_get(
         "admin/runtime_config",
         context! {
             entries => entries,
+            user => auth.user,
         },
     ))
 }

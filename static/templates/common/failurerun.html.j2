@@ -1,28 +1,34 @@
 {% extends "common/run_base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Echec de l'analyse{% endblock %}
-
-{% block banner_text %}Echec de l'analyse{% endblock %}
+{% block title %}Échec de l’analyse | {{ run.run_name }}{% endblock %}
 
 {% block content %}
-{% if attempt.attempt_number == run.attempt_count %}
-<h2>Dernière tentative échouée</h2>
-{% else %}
-<h2>Tentative {{ attempt.attempt_number }} échouée</h2>
-{% endif %}
-<p>L'analyse du run <strong>{{ run.run_name }}</strong> a échoué.</p>
-<h3>Raison</h3>
-<p>{{ fail_reason }}</p>
-
-<div style="margin-top: 30px; text-align: left;">
-    <a id="back-to-runs" class="btn btn-secondary" href="/smaug/show/runs">Retour</a>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Analyse · échec</p>
+    <h1>{{ run.run_name }} - Tentative {{ attempt.attempt_number }}</h1>
+    <p>{% if attempt.attempt_number == run.attempt_count %}Dernière tentative échouée{% else %}Tentative {{
+      attempt.attempt_number }} échouée{% endif %}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
     {% if run.status in ("Idle", "Pending", "Running") %}
-    <a id="analysis-current" class="btn btn-primary" href="/smaug/show/run/{{ run.run_id }}">Voir la tentative
-        actuelle</a>
+    <a class="btn" href="/smaug/show/run/{{ run.run_id }}">{{ ui.icon("clock") }}Tentative actuelle</a>
     {% else %}
-    <a id="retry" class="btn btn-primary" onclick="restartRun()">Relancer</a>
+    <button type="button" class="btn" data-run-action="retry">{{ ui.icon("refresh") }}Relancer</button>
     {% endif %}
-</div>
+  </div>
+</header>
+
+<section class="panel" aria-labelledby="failure-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("error", "section-icon") }}<h2 id="failure-title">Raison de l’échec</h2>
+    </div>
+  </div>
+  <p>{{ fail_reason }}</p>
+</section>
 
 {% include "common/runinfo.html.j2" %}
+{% include "common/advanced.html.j2" %}
 {% endblock %}

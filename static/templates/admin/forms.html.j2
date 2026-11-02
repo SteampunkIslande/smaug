@@ -1,43 +1,32 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Gestion des formulaires{% endblock %}
-
-{% block extra_head %}
-{#
-<script src="/smaug/static/scripts/json_table.js"></script>
-#}
-{% endblock %}
-
-{% block banner_text %}Gestion des formulaires{% endblock %}
+{% block title %}Gestion des formulaires | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Administration</p>
+    <h1>Gestion des formulaires</h1>
+    <p>Actualisez le cache des formulaires depuis le dépôt de pipelines.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/admin/dashboard">{{ ui.icon("arrow-left") }}Tableau de bord</a>
+  </div>
+</header>
 
-<ul>
-    <li>
-        <a href="javascript:void(0);" onclick="update_form_cache()">Mettre à jour le cache</a>
-    </li>
-</ul>
+<section class="panel form-card">
+  <div class="panel-title">
+    <div>{{ ui.icon("file", "section-icon") }}<h2>Cache des formulaires</h2></div>
+  </div>
+  <p>La mise à jour recharge les définitions disponibles sans redémarrer l’application.</p>
+  <div class="form-actions">
+    <button id="update-forms-cache" type="button" class="btn">{{ ui.icon("refresh") }}Mettre à jour le cache</button>
+  </div>
+</section>
+{% endblock %}
 
-<a href="/smaug/admin/dashboard" class="btn btn-primary">Retour au tableau de bord</a>
-
-{% endblock content %}
-
-{% block extra_js %}
-<script>
-    async function update_form_cache() {
-        try {
-            const response = await fetch("/smaug/api/update/cache/forms");
-            if (response.status !== 200) {
-                let text = await response.text();
-                showMessage("error", `Erreur: ${text}`);
-            }
-            else {
-                showMessage("success", "Cache mis à jour avec succès !");
-            }
-        }
-        catch (error) {
-            showMessage('error', error);
-        }
-    }
-</script>
-{% endblock extra_js %}
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-forms.js"></script>
+{% endblock %}

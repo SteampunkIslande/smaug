@@ -29,7 +29,7 @@ pub async fn password_edit_get(
     let edited_user = User::find_by_id(user_id, pool).await?;
     Ok(Template::render(
         "admin/passedit",
-        context! {auth_user=> auth.user, edited_user=>edited_user},
+        context! { edited_user=>edited_user, user=>auth.user},
     ))
 }
 
@@ -39,5 +39,8 @@ pub async fn register_get(auth: Authenticated) -> Result<Template, FrontendError
     if !auth.user.is_admin {
         return Err(FrontendError::AdminsOnly);
     }
-    Ok(Template::render("admin/register", context! {}))
+    Ok(Template::render(
+        "admin/register",
+        context! {user => auth.user},
+    ))
 }

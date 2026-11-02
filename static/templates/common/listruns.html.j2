@@ -1,192 +1,42 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Liste des runs{% endblock %}
-
-{% block extra_head %}
-    {% include "common/pagination_styles.html.j2" %}
-    <script src="/smaug/static/scripts/json_table.js"></script>
-{% endblock %}
-
-{% block banner_text_attrs %} id="banner-title"{% endblock %}
-
-{% block body_attrs %} onload="init()"{% endblock %}
+{% block title %}Liste des runs | SMAUG{% endblock %}
+{% block body_class %}runs-page{% endblock %}
 
 {% block content %}
-    <section>
-        <div>
-            <label for="status-filter">Filtrer par statut :</label>
-            <select id="status-filter" onchange="onStatusFilterChange()">
-                <option value="">Tous</option>
-                <option value="Success">Succès</option>
-                <option value="Failure">Echec</option>
-                <option value="Pending">En attente</option>
-                <option value="Running">Analyses en cours</option>
-                <option value="Idle">A valider</option>
-            </select>
-        </div>
-        <div id="runs-table"></div>
-    </section>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Analyses</p>
+    <h1>Liste des runs</h1>
+    <p>Suivez les analyses visibles par vos groupes.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="/smaug/search/run">{{ ui.icon("search") }}Recherche avancée</a>
+    <a class="btn btn-ghost" href="/smaug/home">{{ ui.icon("home") }}Accueil</a>
+  </div>
+</header>
 
-    <div id="pagination-controls"
-        style="margin: 10px 0; text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 0.9rem;">
-        <button id="first-page-btn" class="pagination-btn" onclick="firstPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">first_page</span>
-        </button>
-
-        <button id="prev-page-btn" class="pagination-btn" onclick="previousPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">chevron_left</span>
-        </button>
-
-        <div style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.85rem;">
-            <span>Page</span>
-            <input id="page-input" type="number" min="1" class="pagination-input" onchange="onPageInputChange()"
-                onkeypress="if(event.key==='Enter') onPageInputChange()">
-            <span id="page-info">/ 1</span>
-        </div>
-
-        <button id="next-page-btn" class="pagination-btn" onclick="nextPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">chevron_right</span>
-        </button>
-
-        <button id="last-page-btn" class="pagination-btn" onclick="lastPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">last_page</span>
-        </button>
-
-        <div style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.85rem; margin-left: 15px;">
-            <span>Nombre :</span>
-            <input id="page-size-input" type="number" min="1" max="100" class="pagination-input"
-                onchange="onPageSizeChange()" onkeypress="if(event.key==='Enter') onPageSizeChange()">
-            <span>runs/page</span>
-        </div>
-    </div>
-
-    <br>
-
-    <a class="btn btn-secondary" href="/smaug/home"><span class="material-icons icon-align">home</span>Retour</a>
-    <a class="btn btn-primary" href="/smaug/search/run" style="margin-right:10px;">
-        <span class="material-icons icon-align">search</span>Recherche avancée
-    </a>
+<section class="panel" aria-labelledby="runs-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("chart", "section-icon") }}<h2 id="runs-title">Runs</h2></div>
+    <label class="field" for="status-filter">
+      <span>Statut</span>
+      <select id="status-filter">
+        <option value="">Tous</option>
+        <option value="Success">Succès</option>
+        <option value="Failure">Échec</option>
+        <option value="Pending">En attente</option>
+        <option value="Running">Analyses en cours</option>
+        <option value="Idle">À valider</option>
+      </select>
+    </label>
+  </div>
+  <div id="runs-table" class="table-scroll" aria-live="polite"></div>
+  {{ ui.pagination() }}
+</section>
 {% endblock %}
 
-{% block extra_js %}
-    <script>
-        let currentPage = 1;
-        let totalPages = 1;
-        let pageSize = 5;
-
-        async function loadRuns(page, size = pageSize) {
-            try {
-                let params = new URLSearchParams(document.location.search);
-                let status = params.get("status");
-                const status_param = status ? `&status=${status}` : "";
-                const response = await fetch(`/smaug/api/listruns?page=${page}&page_size=${size}${status_param}`);
-                const json = await response.json();
-                if (isApiSuccess(json)) {
-                    const data = getApiData(json);
-                    document.getElementById("banner-title").textContent = data.title || "Liste des runs";
-                    if (data.table.length > 0) {
-                        generateJsonTable(data, "runs-table");
-                    } else {
-                        document.getElementById("runs-table").innerHTML = "<p>Aucune donnée à afficher.</p>";
-                    }
-
-                    if (data.pagination) {
-                        currentPage = data.pagination.current_page;
-                        totalPages = data.pagination.total_pages;
-                        updatePaginationControls();
-                    }
-                } else {
-                    showMessage("error", getApiMessage(json) || "Erreur inconnue");
-                }
-            } catch {
-                showMessage("error", "Erreur de chargement des données.");
-            }
-        }
-
-        function updatePaginationControls() {
-            const firstBtn = document.getElementById("first-page-btn");
-            const prevBtn = document.getElementById("prev-page-btn");
-            const nextBtn = document.getElementById("next-page-btn");
-            const lastBtn = document.getElementById("last-page-btn");
-            const pageInput = document.getElementById("page-input");
-            const pageSizeInput = document.getElementById("page-size-input");
-            const pageInfo = document.getElementById("page-info");
-
-            firstBtn.disabled = currentPage <= 1;
-            prevBtn.disabled = currentPage <= 1;
-            nextBtn.disabled = currentPage >= totalPages;
-            lastBtn.disabled = currentPage >= totalPages;
-            pageInput.value = currentPage;
-            pageSizeInput.value = pageSize;
-            pageInfo.textContent = `/ ${totalPages}`;
-        }
-
-        async function goToPage(page) {
-            if (page >= 1 && page <= totalPages) {
-                await loadRuns(page);
-            }
-        }
-
-        async function previousPage() {
-            if (currentPage > 1) {
-                await goToPage(currentPage - 1);
-            }
-        }
-
-        async function nextPage() {
-            if (currentPage < totalPages) {
-                await goToPage(currentPage + 1);
-            }
-        }
-
-        async function firstPage() {
-            await goToPage(1);
-        }
-
-        async function lastPage() {
-            await goToPage(totalPages);
-        }
-
-        async function onPageInputChange() {
-            const pageInput = document.getElementById("page-input");
-            const page = parseInt(pageInput.value);
-            if (page >= 1 && page <= totalPages) {
-                await goToPage(page);
-            } else {
-                pageInput.value = currentPage;
-            }
-        }
-
-        async function onPageSizeChange() {
-            const pageSizeInput = document.getElementById("page-size-input");
-            const newSize = parseInt(pageSizeInput.value);
-            if (newSize >= 1 && newSize <= 100) {
-                pageSize = newSize;
-                await loadRuns(1, pageSize);
-            } else {
-                pageSizeInput.value = pageSize;
-            }
-        }
-
-        function onStatusFilterChange() {
-            const select = document.getElementById("status-filter");
-            const status = select.value;
-            const params = new URLSearchParams(window.location.search);
-            if (status) {
-                params.set("status", status);
-            } else {
-                params.delete("status");
-            }
-            window.location.search = params.toString();
-        }
-
-        async function init() {
-            await loadRuns(1);
-            const params = new URLSearchParams(window.location.search);
-            const status = params.get("status");
-            if (status) {
-                document.getElementById("status-filter").value = status;
-            }
-        }
-    </script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/runs.js"></script>
 {% endblock %}

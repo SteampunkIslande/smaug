@@ -1,7 +1,6 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{# Enum values are stored in English (they are part of the API/database
-   contract). User-facing labels are translated here, in a simple table. #}
 {% set enum_labels = {
     "on_sigint": {
         "StopJobs": "Arrêter les jobs",
@@ -13,101 +12,56 @@
     }
 } %}
 
-{% block title %}Configuration d'exécution{% endblock %}
-
-{% block extra_head %}
-<script src="/smaug/static/scripts/json_table.js"></script>
-{% endblock %}
-
-{% block banner_text %}Configuration d'exécution{% endblock %}
+{% block title %}Configuration d’exécution | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
-<div class="config-container">
-    <h1>Variables de configuration d'exécution</h1>
-    <p class="config-description">
-        Ces variables contrôlent le comportement de l'application au runtime.
-        Les modifications prennent effet immédiatement.
-    </p>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Administration</p>
+    <h1>Configuration d’exécution</h1>
+    <p>Ces variables contrôlent le comportement de l’application au runtime. Les modifications prennent effet immédiatement.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/admin/dashboard">{{ ui.icon("arrow-left") }}Tableau de bord</a>
+  </div>
+</header>
 
+<section class="panel">
+  <div class="panel-title">
+    <div>{{ ui.icon("sliders", "section-icon") }}<h2>Variables</h2></div>
+  </div>
+  <div class="table-scroll">
     <table class="config-table">
-        <thead>
-            <tr>
-                <th>Variable</th>
-                <th>Description</th>
-                <th>Valeur</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in entries %}
-            {% set labels = enum_labels[entry.key] | default({}) %}
-            <tr data-key="{{ entry.key }}">
-                <td class="config-key">{{ entry.key }}</td>
-                <td class="config-description">{{ entry.description }}</td>
-                <td class="config-value">
-                    {% if entry.value_input is string and entry.value_input == "date" %}
-                    <input type="date" class="config-input" name="{{ entry.key }}" value="{{ entry.value | e }}">
-                    {% else %}
-                    <select class="config-select" name="{{ entry.key }}">
-                        {% for option in entry.value_input %}
-                        <option value="{{ option }}"{% if option == entry.value %} selected{% endif %}>
-                            {{ labels[option] | default(option) }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    {% endif %}
-                </td>
-                <td class="config-action">
-                    <a href="javascript:void(0);" class="btn btn-primary btn-sm save-config"
-                        data-key="{{ entry.key }}">Sauvegarder</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+      <thead>
+        <tr><th>Variable</th><th>Description</th><th>Valeur</th><th>Action</th></tr>
+      </thead>
+      <tbody id="config-body">
+        {% for entry in entries %}
+        {% set labels = enum_labels[entry.key] | default({}) %}
+        <tr data-config-row="{{ entry.key }}">
+          <td class="config-key">{{ entry.key }}</td>
+          <td>{{ entry.description }}</td>
+          <td>
+            {% if entry.value_input is string and entry.value_input == "date" %}
+            <input type="date" name="{{ entry.key }}" value="{{ entry.value | e }}">
+            {% else %}
+            <select name="{{ entry.key }}">
+              {% for option in entry.value_input %}
+              <option value="{{ option }}"{% if option == entry.value %} selected{% endif %}>{{ labels[option] | default(option) }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
+          </td>
+          <td><button type="button" class="btn btn-sm" data-config-key="{{ entry.key }}">Sauvegarder</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
-
-    <a href="/smaug/admin/dashboard" class="btn btn-secondary" style="margin-top: 20px;">
-        <span class="material-icons icon-align">arrow_back</span> Retour au tableau de bord
-    </a>
-</div>
+  </div>
+</section>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.save-config').forEach(button => {
-            button.addEventListener('click', async function () {
-                const key = this.dataset.key;
-                const row = document.querySelector(`tr[data-key="${key}"]`);
-                const input = row.querySelector('[name="' + key + '"]');
-
-                const value = input ? input.value : '';
-
-                this.disabled = true;
-
-                try {
-                    const response = await fetch('/smaug/api/config/set', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ key, value }),
-                    });
-
-                    const json = await response.json();
-
-                    if (isApiSuccess(json)) {
-                        showMessage("success", "Configuration sauvegardée");
-                    } else {
-                        showMessage("error", getApiMessage(json) || "Inconnue");
-                    }
-                } catch (error) {
-                    showMessage("error", error);
-                } finally {
-                    this.disabled = false;
-                }
-            });
-        });
-    });
-</script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-runtime-config.js"></script>
 {% endblock %}

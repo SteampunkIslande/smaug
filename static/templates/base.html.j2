@@ -1,46 +1,68 @@
+{% import "_macros.html.j2" as ui %}
 <!DOCTYPE html>
-<html lang="{% block html_lang %}fr{% endblock %}">
+<html lang="fr">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Smaug{% endblock %}</title>
-    <link rel="stylesheet" type="text/css" href="/smaug/static/styles/default.css">
-    <link rel="stylesheet" type="text/css" href="/smaug/static/icon-font/material-icons.css">
-    <link rel="icon" type="image/x-icon" href="/smaug/static/favicon.ico" />
-    <script src="/smaug/static/scripts/show_message.js"></script>
-    <script src="/smaug/static/scripts/api_helper.js"></script>
-    {% block extra_head %}{% endblock %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}SMAUG{% endblock %}</title>
+  <link rel="stylesheet" href="/smaug/static/css/app.css">
+  <link rel="icon" href="/smaug/static/favicon.ico">
+  {% block head %}{% endblock %}
 </head>
 
-<body {% block body_attrs %}{% endblock %}>
-    {% block banner %}
-    <div class="banner">
-        <div class="banner-content">
-            <span class="banner-text" {% block banner_text_attrs %}{% endblock %}>{% block banner_text %}{% endblock
-                %}</span>
-            {% block banner_actions %}
-            <div class="logout-button">
-                <a href="/smaug/logout" class="btn btn-danger"><span
-                        class="material-icons icon-align">logout</span>Déconnexion</a>
-            </div>
-            {% endblock %}
-        </div>
-    </div>
-    {% endblock %}
+<body class="{% block body_class %}{% endblock %}">
+  {% block shell %}
+  {% include "_icons.html.j2" %}
+  <div class="app{% if not (user is defined and user) %} app--plain{% endif %}">
+    <header class="topbar">
+      <a class="brand" href="{% if user is defined and user %}/smaug/home{% else %}/smaug{% endif %}"
+        aria-label="SMAUG, Suite Modulaire d’Analyses Unifiées en Génomique">
+        <img src="/smaug/static/img/dragon.png" alt="" width="62" height="62">
+        <span class="brand-name">MAUG</span>
+        <span class="brand-tagline">Suite Modulaire d’Analyses<br>Unifiées en Génomique</span>
+      </a>
+      {% block topbar_search %}{% endblock %}
+      <div class="top-actions">
+        {% block topbar_actions %}
+        {% if user is defined and user %}
+        <span class="avatar" aria-hidden="true">{{ user.username[0] | upper }}</span>
+        <span class="display-name">{{ user.username }}</span>
+        <a class="logout" href="/smaug/logout">{{ ui.icon("out") }}<span>Déconnexion</span></a>
+        {% else %}
+        <a class="btn btn-sm btn-secondary" href="/smaug/login">Se connecter</a>
+        {% endif %}
+        {% endblock %}
+      </div>
+    </header>
 
-    {% block main_layout %}
+    {% if user is defined and user %}
+    <aside class="sidebar" aria-label="Navigation principale">
+      <nav class="nav-group">
+        <a class="nav-link" data-nav="home" href="/smaug/home">{{ ui.icon("home") }}Accueil</a>
+        <a class="nav-link" data-nav="runs" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
 
-    {% block messages %}
-    <div id="info-message" class="info-msg" style="display:none;"></div>
-    <div id="error-message" class="error-msg" style="display:none;"></div>
-    <div id="success-message" class="success-msg" style="display:none;"></div>
-    {% endblock %}
+        <a class="nav-link" data-nav="docs" target="_blank" href="/smaug/documentation">{{ ui.icon("book")
+          }}Documentation</a>
+      </nav>
+      <div class="sidebar-bottom">
+        {% if user.is_admin %}
+        <a class="nav-link" data-nav="admin" href="/smaug/admin/dashboard">{{ ui.icon("settings") }}Administration</a>
+        {% endif %}
+        <a class="nav-link" data-nav="account" href="/smaug/passedit/{{ user.id }}">{{ ui.icon("lock") }}Mot de
+          passe</a>
+      </div>
+    </aside>
+    {% endif %}
 
-    {% block content %}{% endblock %}
-    {% block extra_js %}{% endblock %}
-
-    {% endblock %}
+    <main class="main{% if not (user is defined and user) %} main--plain{% endif %}">
+      {% block messages %}{% include "_messages.html.j2" %}{% endblock %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% endblock %}
+  <script type="module" src="/smaug/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
 </body>
 
 </html>

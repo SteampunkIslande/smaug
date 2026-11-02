@@ -1,179 +1,72 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Recherche avancée de runs{% endblock %}
-
-{% block extra_head %}
-    {% include "common/pagination_styles.html.j2" %}
-    <script src="/smaug/static/scripts/json_table.js"></script>
-{% endblock %}
-
-{% block banner_text %}Recherche avancée de runs{% endblock %}
+{% block title %}Recherche avancée | SMAUG{% endblock %}
+{% block body_class %}runs-page{% endblock %}
 
 {% block content %}
-    <form id="searchrun-form" class="form-vertical" style="margin: 2em auto; max-width: 500px;">
-        <div>
-            <label for="run_name_search">Nom du run :</label>
-            <input type="text" id="run_name_search" name="run_name_search" placeholder="Nom du run">
-        </div>
-        <div>
-            <label for="date_from">Date de début :</label>
-            <input type="date" id="date_from" name="date_from">
-        </div>
-        <div>
-            <label for="date_to">Date de fin :</label>
-            <input type="date" id="date_to" name="date_to">
-        </div>
-        <div>
-            <label for="status">Statut :</label>
-            <select id="status" name="status">
-                <option value="">Tous</option>
-                <option value="Success">Succès</option>
-                <option value="Failure">Echec</option>
-                <option value="Pending">En attente</option>
-                <option value="Running">Analyses en cours</option>
-                <option value="Idle">A valider</option>
-            </select>
-        </div>
-        <div>
-            <label for="page_size">Résultats par page :</label>
-            <input type="number" id="page_size" name="page_size" min="1" max="100" value="5">
-        </div>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Analyses</p>
+    <h1>Recherche avancée</h1>
+    <p>Filtrez les runs par nom, date ou statut.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/show/runs">{{ ui.icon("arrow-left") }}Retour à la liste</a>
+  </div>
+</header>
 
-        <div style="margin-top: 1em; text-align: left;">
-            <a class="btn btn-secondary" href="/smaug/show/runs">Retour à la liste</a>
-            <a id="searchrun-button" class="btn primary" onclick="searchRuns(1)">Rechercher</a>
-        </div>
-    </form>
-
-    <div id="search-results" style="margin: 2em auto;"></div>
-
-    <div id="pagination-controls"
-        style="margin: 10px 0; text-align: center; display: none; align-items: center; justify-content: center; gap: 10px; font-size: 0.9rem;">
-        <button id="first-page-btn" class="pagination-btn" onclick="firstPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">first_page</span>
-        </button>
-
-        <button id="prev-page-btn" class="pagination-btn" onclick="previousPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">chevron_left</span>
-        </button>
-
-        <div style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.85rem;">
-            <span>Page</span>
-            <input id="page-input" type="number" min="1" class="pagination-input" onchange="onPageInputChange()"
-                onkeypress="if(event.key==='Enter') onPageInputChange()">
-            <span id="page-info">/ 1</span>
-        </div>
-
-        <button id="next-page-btn" class="pagination-btn" onclick="nextPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">chevron_right</span>
-        </button>
-
-        <button id="last-page-btn" class="pagination-btn" onclick="lastPage()" disabled>
-            <span class="material-icons" style="font-size: 16px;">last_page</span>
-        </button>
+<section class="panel form-card" aria-labelledby="search-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("search", "section-icon") }}<h2 id="search-title">Critères de recherche</h2></div>
+  </div>
+  <form id="search-form" class="form">
+    <div class="form-grid">
+      <div class="field">
+        <label for="run_name_search">Nom du run</label>
+        <input type="text" id="run_name_search" name="run_name_search" placeholder="Nom du run">
+      </div>
+      <div class="field">
+        <label for="status">Statut</label>
+        <select id="status" name="status">
+          <option value="">Tous</option>
+          <option value="Success">Succès</option>
+          <option value="Failure">Échec</option>
+          <option value="Pending">En attente</option>
+          <option value="Running">Analyses en cours</option>
+          <option value="Idle">À valider</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="date_from">Date de début</label>
+        <input type="date" id="date_from" name="date_from">
+      </div>
+      <div class="field">
+        <label for="date_to">Date de fin</label>
+        <input type="date" id="date_to" name="date_to">
+      </div>
+      <div class="field">
+        <label for="page_size">Résultats par page</label>
+        <input type="number" id="page_size" name="page_size" min="1" max="100" value="10">
+      </div>
     </div>
+    <div class="form-actions">
+      <button id="search-button" class="btn" type="submit">{{ ui.icon("search") }}Rechercher</button>
+      <a class="btn btn-secondary" href="/smaug/show/runs">Annuler</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel" aria-labelledby="results-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("chart", "section-icon") }}<h2 id="results-title">Résultats</h2></div>
+    <span id="results-count" class="soft-badge"></span>
+  </div>
+  <div id="search-results" class="table-scroll" aria-live="polite"></div>
+  {{ ui.pagination() }}
+</section>
 {% endblock %}
 
-{% block extra_js %}
-    <script>
-        let currentPage = 1;
-        let totalPages = 1;
-
-        async function searchRuns(page) {
-            const run_name_search = document.getElementById('run_name_search').value;
-            const date_from = document.getElementById('date_from').value;
-            const date_to = document.getElementById('date_to').value;
-            const status = document.getElementById('status').value;
-            const page_size = document.getElementById('page_size').value;
-
-            let params = new URLSearchParams();
-            params.append('page', page);
-            params.append('page_size', page_size);
-            if (status) params.append('status', status);
-            if (date_from) params.append('date_from', date_from);
-            if (date_to) params.append('date_to', date_to);
-            if (run_name_search) params.append('run_name_search', run_name_search);
-
-            try {
-                const response = await fetch(`/smaug/api/searchrun?${params.toString()}`);
-                const json = await response.json();
-                const resultsDiv = document.getElementById('search-results');
-                const paginationDiv = document.getElementById('pagination-controls');
-
-                if (isApiSuccess(json)) {
-                    const data = getApiData(json);
-                    if (data && data.table && data.table.length > 0) {
-                        generateJsonTable(data, "search-results");
-                        paginationDiv.style.display = 'flex';
-                    } else {
-                        resultsDiv.innerHTML = "<p>Aucun résultat trouvé.</p>";
-                        paginationDiv.style.display = 'none';
-                    }
-
-                    if (data.pagination) {
-                        currentPage = data.pagination.current_page;
-                        totalPages = data.pagination.total_pages;
-                        updatePaginationControls();
-                    }
-                } else {
-                    resultsDiv.innerHTML = "<p>Erreur: " + (getApiMessage(json) || "Inconnue") + "</p>";
-                    paginationDiv.style.display = 'none';
-                }
-            } catch (e) {
-                showMessage("error", "Erreur lors de la recherche : " + e);
-            }
-        }
-
-        function updatePaginationControls() {
-            const firstBtn = document.getElementById("first-page-btn");
-            const prevBtn = document.getElementById("prev-page-btn");
-            const nextBtn = document.getElementById("next-page-btn");
-            const lastBtn = document.getElementById("last-page-btn");
-            const pageInput = document.getElementById("page-input");
-            const pageInfo = document.getElementById("page-info");
-
-            firstBtn.disabled = currentPage <= 1;
-            prevBtn.disabled = currentPage <= 1;
-            nextBtn.disabled = currentPage >= totalPages;
-            lastBtn.disabled = currentPage >= totalPages;
-            pageInput.value = currentPage;
-            pageInfo.textContent = `/ ${totalPages}`;
-        }
-
-        async function goToPage(page) {
-            if (page >= 1 && page <= totalPages) {
-                await searchRuns(page);
-            }
-        }
-
-        async function previousPage() {
-            if (currentPage > 1) {
-                await goToPage(currentPage - 1);
-            }
-        }
-
-        async function nextPage() {
-            if (currentPage < totalPages) {
-                await goToPage(currentPage + 1);
-            }
-        }
-
-        async function firstPage() {
-            await goToPage(1);
-        }
-
-        async function lastPage() {
-            await goToPage(totalPages);
-        }
-
-        async function onPageInputChange() {
-            const pageInput = document.getElementById("page-input");
-            const page = parseInt(pageInput.value);
-            if (page >= 1 && page <= totalPages) {
-                await goToPage(page);
-            } else {
-                pageInput.value = currentPage;
-            }
-        }
-    </script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/search.js"></script>
 {% endblock %}

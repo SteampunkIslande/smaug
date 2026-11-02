@@ -1,17 +1,15 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}{{ title }}{% endblock %}
-
-{% block banner %}{% endblock %}
-
-{% block messages %}{% endblock %}
-
-{% block body_attrs %} class="bg-light flex-center vh-100"{% endblock %}
+{% block title %}{{ title }} | SMAUG{% endblock %}
 
 {% block content %}
-    <div class="card">
-        <h2 class="title text-danger">{{ h2 }}</h2>
-        <p class="paragraph">{{ message }}</p>
-        <a href="/smaug/login" class="btn btn-primary">Se connecter</a>
-    </div>
+<div class="state-page">
+  <section class="state-card">
+    {{ ui.icon("lock") }}
+    <h1>{{ h2 }}</h1>
+    <p>{{ message }}</p>
+    <a class="btn" href="/smaug/login">{{ ui.icon("user") }}Se connecter</a>
+  </section>
+</div>
 {% endblock %}

@@ -132,6 +132,19 @@ impl Attempt {
         PathBuf::from(&get_smaug_config().analysis_dir).join(format!("run-{:0>8}", self.run_id))
     }
 
+    /// Directory of the curated files listed on the run page.
+    pub fn exports_dir(&self) -> PathBuf {
+        self.outdir()
+            .join(format!("exports-{:0>8}", self.attempt_number))
+    }
+
+    /// Directory of the bulk files (logs, intermediates, ...) served by the
+    /// files API but deliberately not listed on the run page.
+    pub fn logs_dir(&self) -> PathBuf {
+        self.outdir()
+            .join(format!("logs-{:0>8}", self.attempt_number))
+    }
+
     pub fn attempt_full_name(&self) -> String {
         format!(
             "run-{:0>8}-tentative-{:0>8}",
@@ -150,11 +163,15 @@ impl Attempt {
     pub async fn render_script(&self, run_name: &str) -> Result<String> {
         let form = self.get_form().await?;
         let outdir = self.outdir().display().to_string();
-        // Add { user defined variables } as well as run-related mandatory/convenient variables: [attempt number, output directory (that will be $PWD), run number]
+        let exports_dir = self.exports_dir().display().to_string();
+        let logs_dir = self.logs_dir().display().to_string();
+        // Add { user defined variables } as well as run-related mandatory/convenient variables: [attempt number, output directory (that will be $PWD), export and log directories, run number]
         let ctx = form.jinja_context(
             &self.user_defined_vars,
             self.attempt_number,
             &outdir,
+            &exports_dir,
+            &logs_dir,
             self.run_id,
             run_name,
         );

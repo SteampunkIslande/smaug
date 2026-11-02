@@ -1,58 +1,8 @@
 {% extends "base.html.j2" %}
+{% block body_class %}run-page{% endblock %}
 
-
-{% block extra_js %}
-<script>
-    const runId = {{ run.run_id }};
-    const attemptNumber = {{ attempt.attempt_number }};
-    const attemptCommit = {{ attempt.commit_hash | tojson }};
-
-    async function validateRun() {
-        if (!runId) {
-            showMessage("error", "ID du run introuvable.");
-            return;
-        }
-        if (!confirm("Valider ce run ? Une nouvelle tentative sera créée et l'analyse pourra démarrer.")) {
-            return;
-        }
-        try {
-            const response = await fetch('/smaug/api/validate/' + runId, { method: 'POST' });
-            const data = await response.json();
-            if (isApiSuccess(data)) {
-                window.location = "/smaug/api/redirect?target_url=/smaug/show/run/" + runId +
-                    "&title=" + encodeURIComponent("Succès") +
-                    "&message=" + encodeURIComponent(getApiData(data).message) +
-                    "&seconds=5";
-            } else {
-                showMessage("error", getApiMessage(data));
-            }
-        } catch (error) {
-            showMessage("error", error);
-        }
-    }
-
-    async function restartRun() {
-        if (!runId) {
-            showMessage("error", "ID du run introuvable.");
-            return;
-        }
-        if (!confirm("Relancer ce run avec la version actuelle du pipeline ? Les variables restent identiques.")) {
-            return;
-        }
-        try {
-            const response = await fetch(`/smaug/api/retry/${runId}`);
-            const data = await response.json();
-            if (isApiSuccess(data)) {
-                window.location.href = `/smaug/show/run/${runId}`;
-            } else {
-                showMessage("error", getApiMessage(data) || "Relance de l'analyse refusée");
-            }
-        } catch (error) {
-            showMessage("error", error);
-        }
-    }
-
-
-</script>
-{% block run_extra_js %}{% endblock %}
-{% endblock extra_js %}
+{% block scripts %}
+<script type="application/json" id="run-data">{{ {"runId": run.run_id, "attemptNumber": attempt.attempt_number} | tojson }}</script>
+<script type="module" src="/smaug/static/js/pages/run.js"></script>
+{% block run_scripts %}{% endblock %}
+{% endblock %}

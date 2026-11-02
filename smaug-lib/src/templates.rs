@@ -242,8 +242,10 @@ mod tests {
             .render(context! {})
             .unwrap();
         assert!(html.contains("<!DOCTYPE html>"));
-        assert!(html.contains("Bienvenue sur Smaug"));
-        assert!(html.contains("/smaug/static/styles/default.css"));
+        assert!(html.contains("Pipelines et outils d’analyses génomiques"));
+        assert!(html.contains("/smaug/login"));
+        assert!(html.contains("/smaug/static/css/app.css"));
+        assert!(html.contains("/smaug/static/img/dragon.png"));
         assert!(!html.contains("Déconnexion"));
     }
 
@@ -255,9 +257,9 @@ mod tests {
             .unwrap()
             .render(context! {})
             .unwrap();
-        assert!(html.contains("Connexion - Smaug"));
-        assert!(html.contains("show_message.js"));
-        assert!(html.contains("banner-text"));
+        assert!(html.contains("Connexion | SMAUG"));
+        assert!(html.contains("login-form"));
+        assert!(html.contains("pages/login.js"));
     }
 
     #[test]
@@ -268,7 +270,7 @@ mod tests {
             .unwrap()
             .render(context! { title => "x", h2 => "y", message => "z" })
             .unwrap();
-        assert!(unauthorized.contains("class=\"bg-light flex-center vh-100\""));
+        assert!(unauthorized.contains("state-card"));
         assert!(unauthorized.contains("Se connecter"));
 
         let admin_only = env
@@ -308,7 +310,6 @@ mod tests {
             target_url => "/",
             user => context! { username => "u", id => 1 },
             edited_user => context! { username => "u", id => 1 },
-            auth_user => context! { is_admin => false },
             user_groups => Vec::<minijinja::Value>::new(),
             is_admin => false,
             pipelines_struct => context! {},
@@ -351,9 +352,8 @@ mod tests {
             .unwrap()
             .render(ctx)
             .unwrap();
-        assert!(running_page.contains("/smaug/api/watch/"));
-        assert!(running_page.contains("/smaug/api/squeue?job_name="));
-        assert!(running_page.contains("POLL_INTERVAL_MS"));
-        assert!(running_page.contains("onbeforeunload=\"stopPolling()\""));
+        assert!(running_page.contains("id=\"run-data\""));
+        assert!(running_page.contains("/smaug/static/js/pages/run.js"));
+        assert!(running_page.contains("slurm-jobs-table"));
     }
 }

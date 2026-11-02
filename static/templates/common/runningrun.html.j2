@@ -1,550 +1,66 @@
 {% extends "common/run_base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Run en cours d'analyse - {{ run.run_name }}{% endblock %}
-
-{% block extra_head %}
-<style>
-    .progress {
-        background: hsl(0, 0%, 50%);
-        border-radius: 4px;
-        overflow: hidden;
-        height: 24px;
-    }
-
-    .progress-bar {
-        background: #3fc401;
-        height: 100%;
-        color: #ffffff;
-        text-align: left;
-        white-space: nowrap;
-        line-height: 24px;
-        padding-left: 6px;
-        font-weight: bold;
-        transition: width 0.3s ease;
-    }
-
-    .stdout-line {
-        margin: 0.5rem 0 0;
-        padding: 0.75rem;
-        min-height: 2.8rem;
-        max-height: 7rem;
-        overflow: auto;
-        border-radius: 4px;
-        background: #1e1e1e;
-        color: #d4d4d4;
-        font-family: monospace;
-        font-size: 0.85rem;
-        white-space: pre-wrap;
-        word-break: break-word;
-    }
-
-    .stdout-line-empty {
-        color: #9aa0a6;
-        font-style: italic;
-    }
-
-    .job-counters {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        margin: 1rem 0;
-    }
-
-    .counter-card {
-        flex: 1 1 140px;
-        padding: 0.75rem 1rem;
-        border: 1px solid #d7dce1;
-        border-radius: 6px;
-        background: #f8f9fa;
-    }
-
-    .counter-label {
-        display: block;
-        font-size: 0.85rem;
-        color: #5f6368;
-    }
-
-    .counter-value {
-        display: block;
-        margin-top: 0.25rem;
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #333333;
-    }
-
-    .watch-status {
-        display: none;
-        margin: 0.5rem 0;
-        padding: 0.5rem 0.75rem;
-        border-left: 4px solid #007bff;
-        background: #eef5ff;
-        color: #333333;
-    }
-
-    .slurm-jobs-header {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .slurm-jobs-header h2 {
-        margin: 0;
-    }
-
-    .slurm-jobs-message {
-        padding: 0.75rem;
-        border: 1px dashed #c4c9ce;
-        border-radius: 4px;
-        color: #5f6368;
-    }
-
-    .table-scroll {
-        overflow-x: auto;
-    }
-
-    #slurm-jobs-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.85rem;
-    }
-
-    #slurm-jobs-table th,
-    #slurm-jobs-table td {
-        padding: 0.45rem 0.55rem;
-        border-bottom: 1px solid #e1e4e8;
-        text-align: left;
-        vertical-align: top;
-        white-space: nowrap;
-    }
-
-    #slurm-jobs-table th {
-        background: #f1f3f5;
-        font-weight: bold;
-    }
-
-    #slurm-jobs-table tbody tr:hover {
-        background: #f8f9fa;
-    }
-
-    .state-badge {
-        display: inline-block;
-        padding: 0.15rem 0.45rem;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: bold;
-        color: #ffffff;
-        background: #6c757d;
-    }
-
-    .state-running {
-        background: #198754;
-    }
-
-    .state-pending {
-        background: #b58100;
-    }
-
-    .state-completed {
-        background: #0d6efd;
-    }
-
-    .state-failed {
-        background: #dc3545;
-    }
-
-    .state-cancelled,
-    .state-timeout {
-        background: #6f42c1;
-    }
-
-    .state-suspended,
-    .state-configuring {
-        background: #0dcaf0;
-        color: #212529;
-    }
-
-    .state-other {
-        background: #6c757d;
-    }
-</style>
-{% endblock %}
-
-{% block banner_text %}Run en cours d'analyse<br><span> {{ run.run_name }}</span>
-{% endblock banner_text %}
+{% block title %}Run en cours | {{ run.run_name }}{% endblock %}
 
 {% block content %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Analyse · en cours</p>
+    <h1>{{ run.run_name }}</h1>
+    <p>{{ form.name }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
+  </div>
+</header>
 
-<div class="field">
-    <strong>Formulaire:</strong> {{ form.name }}
-</div>
+<div class="run-layout">
+  <div class="run-card">
+    <section class="panel" aria-labelledby="progress-title">
+      <div class="panel-title">
+        <div>{{ ui.icon("clock", "section-icon") }}<h2 id="progress-title">Progression</h2></div>
+      </div>
+      <dl class="run-meta">
+        <div class="info-row"><dt>Étape</dt><dd id="current-step"><em>Non renseignée</em></dd></div>
+      </dl>
+      <p class="info-label">Dernière ligne de sortie</p>
+      <pre id="last-output-line" class="stdout is-empty">En attente de sortie…</pre>
+      <p class="info-label">Avancement de l’étape</p>
+      <div id="progress-container" class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="progress-bar" class="progress-bar">0%</div>
+      </div>
+      <div class="counters">
+        <div class="counter"><span class="counter-label">Jobs en attente</span><span id="pending-jobs-count" class="counter-value">—</span></div>
+        <div class="counter"><span class="counter-label">Jobs en cours</span><span id="running-jobs-count" class="counter-value">—</span></div>
+        <div class="counter"><span class="counter-label">Étapes terminées</span><span id="done-jobs-count" class="counter-value">—</span></div>
+      </div>
+      <p id="watch-status" class="watch-status" role="status" hidden></p>
+    </section>
 
-<div class="field">
-    <strong>Étape:</strong> <span id="current-step"><em>Non renseignée</em></span>
-</div>
-
-<div class="field">
-    <strong>Dernière ligne de sortie:</strong>
-    <pre id="last-output-line" class="stdout-line stdout-line-empty">En attente de sortie…</pre>
-</div>
-
-<div class="field">
-    <strong>Progression de l'étape:</strong>
-    <div id="progress-container">
-        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div id="progress-bar" class="progress-bar" style="width:0%">0%</div>
+    <section class="panel" aria-labelledby="jobs-title">
+      <div class="jobs-head">
+        <div>
+          <h2 id="jobs-title">Jobs SLURM</h2>
+          <small id="slurm-job-name">Aucun job SLURM associé</small>
         </div>
-    </div>
+        <button id="refresh-btn" type="button" class="btn btn-secondary btn-sm">{{ ui.icon("refresh") }}Actualiser</button>
+      </div>
+      <p id="slurm-jobs-message" class="jobs-message">Chargement des informations SLURM…</p>
+      <div class="table-scroll">
+        <table id="slurm-jobs-table" class="data-table" hidden>
+          <thead>
+            <tr><th>ID</th><th>Nom</th><th>État</th><th>Écoulé</th><th>Limite</th><th>Nœuds</th><th>Nodelist</th><th>Raison</th></tr>
+          </thead>
+          <tbody id="slurm-jobs-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <aside class="run-card">
+    {% include "common/runinfo.html.j2" %}
+    {% include "common/advanced.html.j2" %}
+  </aside>
 </div>
-
-<div class="job-counters">
-    <div class="counter-card">
-        <span class="counter-label">Jobs SLURM en attente</span>
-        <span id="pending-jobs-count" class="counter-value">—</span>
-    </div>
-    <div class="counter-card">
-        <span class="counter-label">Jobs SLURM en cours</span>
-        <span id="running-jobs-count" class="counter-value">—</span>
-    </div>
-    <div class="counter-card">
-        <span class="counter-label">Étapes terminées (snakemake)</span>
-        <span id="done-jobs-count" class="counter-value">—</span>
-    </div>
-</div>
-
-<p id="watch-status" class="watch-status" role="status"></p>
-
-<div class="slurm-jobs-header">
-    <h2>Jobs SLURM</h2>
-    <div>
-        <span id="slurm-job-name">Aucun job SLURM associé</span>
-        <button id="refresh-btn" type="button" class="btn btn-secondary" onclick="pollJobInfo()">Actualiser</button>
-    </div>
-</div>
-
-<div id="slurm-jobs-message" class="slurm-jobs-message">
-    Chargement des informations SLURM…
-</div>
-
-<div class="table-scroll">
-    <table id="slurm-jobs-table" style="display: none;">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nom</th>
-                <th>État</th>
-                <th>Écoulé</th>
-                <th>Limite</th>
-                <th>Nœuds</th>
-                <th>Nodelist</th>
-                <th>Raison</th>
-            </tr>
-        </thead>
-        <tbody id="slurm-jobs-body"></tbody>
-    </table>
-</div>
-
-{% include "common/runinfo.html.j2" %}
-
-<div style="margin-top: 30px; text-align: left;">
-    <a id="back-to-runs" class="btn btn-secondary" href="/smaug/show/runs">Retour</a>
-</div>
-{% endblock content %}
-
-{% block body_attrs %}onbeforeunload="stopPolling()"{% endblock %}
-
-{% block run_extra_js %}
-<script>
-    const POLL_INTERVAL_MS = 30000;
-    let intervalId = null;
-    let pollInFlight = false;
-
-    function stopPolling() {
-        if (intervalId !== null) {
-            clearInterval(intervalId);
-            intervalId = null;
-        }
-    }
-
-    function setText(id, value) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
-    }
-
-    function setWatchStatus(message) {
-        const element = document.getElementById("watch-status");
-        if (!element) {
-            return;
-        }
-        element.textContent = message || "";
-        element.style.display = message ? "block" : "none";
-    }
-
-    function setProgress(percent) {
-        const value = Math.max(0, Math.min(100, Number(percent) || 0));
-        const bar = document.getElementById("progress-bar");
-        if (!bar) {
-            return;
-        }
-        bar.style.width = value + "%";
-        bar.textContent = value + "%";
-        if (bar.parentElement) {
-            bar.parentElement.setAttribute("aria-valuenow", String(value));
-        }
-    }
-
-    function setStep(step) {
-        const element = document.getElementById("current-step");
-        if (!element) {
-            return;
-        }
-        if (step) {
-            element.textContent = step;
-        } else {
-            element.innerHTML = "<em>Non renseignée</em>";
-        }
-    }
-
-    function setLastLine(line) {
-        const element = document.getElementById("last-output-line");
-        if (!element) {
-            return;
-        }
-        if (line) {
-            element.textContent = line;
-            element.classList.remove("stdout-line-empty");
-        } else {
-            element.textContent = "Aucune ligne de sortie pour le moment.";
-            element.classList.add("stdout-line-empty");
-        }
-    }
-
-    function formatCount(value) {
-        return value === null || value === undefined ? "—" : String(value);
-    }
-
-    function stateClass(state) {
-        const normalized = String(state || "").toUpperCase();
-        switch (normalized) {
-            case "RUNNING":
-            case "R":
-                return "state-running";
-            case "PENDING":
-            case "PD":
-                return "state-pending";
-            case "COMPLETED":
-            case "CD":
-                return "state-completed";
-            case "FAILED":
-            case "F":
-                return "state-failed";
-            case "CANCELLED":
-            case "CA":
-            case "TIMEOUT":
-            case "TO":
-                return "state-cancelled";
-            case "SUSPENDED":
-            case "S":
-            case "CONFIGURING":
-            case "CF":
-                return "state-suspended";
-            default:
-                return "state-other";
-        }
-    }
-
-    function isPendingState(state) {
-        const normalized = String(state || "").toUpperCase();
-        return normalized === "PENDING" || normalized === "PD";
-    }
-
-    function isRunningState(state) {
-        const normalized = String(state || "").toUpperCase();
-        return normalized === "RUNNING" || normalized === "R";
-    }
-
-    function renderJobs(jobs, jobName) {
-        const table = document.getElementById("slurm-jobs-table");
-        const body = document.getElementById("slurm-jobs-body");
-        const message = document.getElementById("slurm-jobs-message");
-
-        if (!table || !body || !message) {
-            return;
-        }
-
-        body.replaceChildren();
-
-        if (!Array.isArray(jobs) || jobs.length === 0) {
-            table.style.display = "none";
-            message.style.display = "block";
-            message.textContent = jobName
-                ? "Aucun job SLURM en attente ou en cours pour ce nom."
-                : "Aucun nom de job SLURM détecté dans la sortie du pipeline.";
-            return;
-        }
-
-        jobs.forEach(job => {
-            const row = document.createElement("tr");
-            const cells = [
-                job.job_id,
-                job.job_name,
-                job.state,
-                job.elapsed,
-                job.time_limit,
-                job.nodes,
-                job.nodelist,
-                job.reason
-            ];
-
-            cells.forEach((value, index) => {
-                const cell = document.createElement("td");
-
-                if (index === 2) {
-                    const badge = document.createElement("span");
-                    badge.className = "state-badge " + stateClass(value);
-                    badge.textContent = value || "—";
-                    cell.appendChild(badge);
-                } else {
-                    cell.textContent = value || "—";
-                }
-
-                row.appendChild(cell);
-            });
-
-            body.appendChild(row);
-        });
-
-        message.style.display = "none";
-        table.style.display = "table";
-    }
-
-    function updateJobCounts(jobs) {
-        const safeJobs = Array.isArray(jobs) ? jobs : [];
-        const pending = safeJobs.filter(job => isPendingState(job.state)).length;
-        const running = safeJobs.filter(job => isRunningState(job.state)).length;
-
-        setText("pending-jobs-count", formatCount(pending));
-        setText("running-jobs-count", formatCount(running));
-    }
-
-    function showSqueueError(message) {
-        const table = document.getElementById("slurm-jobs-table");
-        const container = document.getElementById("slurm-jobs-message");
-
-        if (table) {
-            table.style.display = "none";
-        }
-        if (container) {
-            container.style.display = "block";
-            container.textContent = message;
-        }
-    }
-
-    async function refreshSqueue(jobName) {
-        const trimmedJobName = String(jobName || "").trim();
-
-        if (!trimmedJobName) {
-            setText("pending-jobs-count", "—");
-            setText("running-jobs-count", "—");
-            renderJobs([], "");
-            return;
-        }
-
-        try {
-            const response = await fetch(
-                `/smaug/api/squeue?job_name=${encodeURIComponent(trimmedJobName)}`,
-                {
-                    cache: "no-store",
-                    headers: { "Accept": "application/json" }
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const payload = await response.json();
-
-            if (!isApiSuccess(payload)) {
-                throw new Error(getApiMessage(payload) || "Impossible d'interroger squeue.");
-            }
-
-            const jobs = getApiData(payload);
-            updateJobCounts(jobs);
-            renderJobs(jobs, trimmedJobName);
-        } catch (error) {
-            console.warn("Erreur lors de la récupération des jobs SLURM", error);
-            setText("pending-jobs-count", "—");
-            setText("running-jobs-count", "—");
-            showSqueueError(`Impossible de récupérer les jobs SLURM : ${error.message || "erreur inconnue"}`);
-        }
-    }
-
-    async function updateJobInfo(info) {
-        const data = info || {};
-        const jobName = data.slurm_job_name || "";
-
-        setStep(data.current_step_string);
-        setLastLine(data.last_output_line);
-        setProgress(data.current_progress);
-        setText("done-jobs-count", formatCount(data.done_jobs_count));
-        setText("slurm-job-name", jobName ? "Job SLURM : " + jobName : "Aucun job SLURM associé");
-
-        if (data.log_available === false) {
-            setWatchStatus("La progression n'est pas encore disponible.");
-        } else {
-            setWatchStatus("");
-        }
-
-        await refreshSqueue(jobName);
-    }
-
-    async function pollJobInfo() {
-        if (pollInFlight) {
-            return;
-        }
-
-        pollInFlight = true;
-
-        const refreshButton = document.getElementById("refresh-btn");
-        if (refreshButton) {
-            refreshButton.disabled = true;
-        }
-
-        try {
-            const response = await fetch(`/smaug/api/watch/${runId}/${attemptNumber}`, {
-                cache: "no-store",
-                headers: { "Accept": "application/json" }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const payload = await response.json();
-
-            if (isApiSuccess(payload)) {
-                await updateJobInfo(getApiData(payload) || {});
-            } else {
-                setWatchStatus(getApiMessage(payload) || "Impossible de récupérer l'état du run.");
-            }
-        } catch (error) {
-            console.warn("Erreur lors de la récupération des informations du run", error);
-            setWatchStatus(`Erreur de communication avec le serveur. Nouvelle tentative dans ${POLL_INTERVAL_MS / 1000} s.`);
-        } finally {
-            if (refreshButton) {
-                refreshButton.disabled = false;
-            }
-            pollInFlight = false;
-        }
-    }
-
-    stopPolling();
-    intervalId = setInterval(pollJobInfo, POLL_INTERVAL_MS);
-    pollJobInfo();
-</script>
 {% endblock %}

@@ -1,72 +1,40 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Liste des utilisateurs{% endblock %}
-
-{% block banner_text %}Liste des utilisateurs{% endblock %}
-
-{% block body_attrs %} onload="init()"{% endblock %}
+{% block title %}Utilisateurs | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
-    <table>
-        <thead>
-            <tr>
-                <th class="padding-x centered">Nom de l'utilisateur</th>
-                <th class="padding-x centered">Groupe</th>
-                <th class="padding-x centered">Mot de passe</th>
-            </tr>
-        </thead>
-        <tbody id="user-list">
-            <!-- Rows will be dynamically populated -->
-        </tbody>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Administration</p>
+    <h1>Utilisateurs</h1>
+    <p>Gérez les comptes, les groupes et les mots de passe.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="/smaug/admin/register">{{ ui.icon("user-plus") }}Créer un utilisateur</a>
+    <a class="btn btn-ghost" href="/smaug/admin/dashboard">{{ ui.icon("arrow-left") }}Tableau de bord</a>
+  </div>
+</header>
+
+<section class="panel">
+  <div class="panel-title">
+    <div>{{ ui.icon("users", "section-icon") }}<h2>Comptes</h2></div>
+    <span class="soft-badge" id="users-count"></span>
+  </div>
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr><th>Utilisateur</th><th>Groupes</th><th>Mot de passe</th></tr>
+      </thead>
+      <tbody id="user-list">
+        <tr><td colspan="3" class="empty-state">Chargement des utilisateurs…</td></tr>
+      </tbody>
     </table>
-    <div style="text-align: left; margin-top: 20px;">
-        <a href="/smaug/admin/dashboard" class="btn btn-secondary">Retour au tableau de bord</a>
-    </div>
+  </div>
+</section>
 {% endblock %}
 
-{% block extra_js %}
-    <script>
-        async function fetchUsers() {
-            try {
-                const response = await fetch('/smaug/api/users/list');
-                const data = await response.json();
-
-                if (isApiSuccess(data) && getApiData(data)) {
-                    const users = getApiData(data);
-                    const userList = document.getElementById('user-list');
-                    users.forEach(user => {
-                        const row = document.createElement('tr');
-
-                        const nameCell = document.createElement('td');
-                        nameCell.innerHTML = user.username + (user.is_admin ? ' (Admin <span class="material-icons icon-align" style="font-size: 1rem; color: #ff0000;">shield</span>)' : '');
-                        row.appendChild(nameCell);
-
-                        const groupEditCell = document.createElement('td');
-                        const groupEditLink = document.createElement('a');
-                        groupEditLink.href = `/smaug/admin/groupedit/${user.id}`;
-                        groupEditLink.textContent = 'Editer les groupes';
-                        groupEditLink.className = "inline-table centered";
-                        groupEditCell.appendChild(groupEditLink);
-                        row.appendChild(groupEditCell);
-
-                        const passEditCell = document.createElement('td');
-                        const passEditLink = document.createElement('a');
-                        passEditLink.href = `/smaug/passedit/${user.id}`;
-                        passEditLink.textContent = 'Modifier le mot de passe';
-                        passEditLink.className = "inline-table centered";
-                        passEditCell.appendChild(passEditLink);
-                        row.appendChild(passEditCell);
-
-                        userList.appendChild(row);
-                    });
-                }
-            } catch (error) {
-                showMessage('error', error);
-            }
-        }
-
-        async function init() {
-            await fetchUsers();
-        }
-    </script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-users.js"></script>
 {% endblock %}

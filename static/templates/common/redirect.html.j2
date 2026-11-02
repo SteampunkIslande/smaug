@@ -1,34 +1,19 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
 {% block title %}{{ title }}{% endblock %}
 
-{% block banner %}{% endblock %}
-
-{% block messages %}{% endblock %}
-
-{% block body_attrs %} onload="init()"{% endblock %}
-
 {% block content %}
+<div class="state-page">
+  <section class="state-card">
+    <p class="eyebrow">Redirection</p>
     <h1>{{ title }}</h1>
     <p>{{ message }}</p>
-    <p>Vous allez être redirigé dans <strong id="countdown">{{ seconds }}</strong> secondes. Si vous n'êtes pas
-        redirigé, <a href="{{ target_url | safe }}">cliquez ici</a>.</p>
+    <p>Vous allez être redirigé dans <strong id="countdown" data-target="{{ target_url | e }}" data-seconds="{{ seconds }}">{{ seconds }}</strong> secondes. Si rien ne se passe, <a href="{{ target_url | e }}">cliquez ici</a>.</p>
+  </section>
+</div>
 {% endblock %}
 
-{% block extra_js %}
-    <script>
-        async function init() {
-            const target = "{{ target_url | safe }}";
-            let secs = parseInt("{{ seconds }}", 10);
-            if (isNaN(secs) || secs < 0) secs = 5;
-            const el = document.getElementById('countdown');
-            el.textContent = secs;
-            while (secs > 0) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                secs -= 1;
-                el.textContent = secs;
-            }
-            window.location = target;
-        }
-    </script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/redirect.js"></script>
 {% endblock %}

@@ -1,101 +1,52 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Modifier le mot de passe{% endblock %}
-
-{% block banner_text %}Modifier le mot de passe de {{edited_user.username }}{% endblock %}
+{% block title %}Mot de passe | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
-    <div class="form-vertical" style="margin: 1em auto;">
-        <input type="hidden" name="user_id" id="user_id" value="{{ edited_user.id }}">
-        {% if not auth_user.is_admin %}
-        <div class="form-group">
-            <label for="old_password">Mot de passe actuel</label>
-            <input type="password" id="old_password" name="old_password" required>
-        </div>
-        {% endif %}
-        <div class="form-group">
-            <label for="new_password">Nouveau mot de passe</label>
-            <input type="password" id="new_password" name="new_password" required>
-        </div>
-        <div class="form-group">
-            <label for="new_password_confirm">Confirmation du mot de passe</label>
-            <input type="password" id="new_password_confirm" name="new_password_confirm" required>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">{% if user.is_admin %}Administration{% else %}Mon compte{% endif %}</p>
+    <h1>Modifier le mot de passe</h1>
+    <p>Compte de {{ edited_user.username }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="{% if user.is_admin %}/smaug/admin/editusers{% else %}/smaug/home{% endif %}">{{
+      ui.icon("arrow-left") }}Retour</a>
+  </div>
+</header>
 
-            <div style="text-align: left; margin-top: 20px;">
-                {% if auth_user.is_admin %}
-                <a class="btn btn-secondary" href="/smaug/admin/editusers">Retour à la liste des utilisateurs</a>
-                {% else %}
-                <a class="btn btn-secondary" href="/smaug/home">Retour</a>
-                {% endif %}
-                <a class="btn btn-primary" onclick="submitForm()">Modifier le mot de passe</a>
-            </div>
-        </div>
+<section class="panel form-card">
+  <div class="panel-title">
+    <div>{{ ui.icon("lock", "section-icon") }}<h2>Sécurité</h2>
     </div>
+  </div>
+  <form id="password-form" class="form">
+    {% if not user.is_admin %}
+    <div class="field">
+      <label for="old_password">Mot de passe actuel</label>
+      <input type="password" id="old_password" name="old_password" autocomplete="current-password" required>
+    </div>
+    {% endif %}
+    <div class="field">
+      <label for="new_password">Nouveau mot de passe</label>
+      <input type="password" id="new_password" name="new_password" autocomplete="new-password" required>
+    </div>
+    <div class="field">
+      <label for="new_password_confirm">Confirmation du mot de passe</label>
+      <input type="password" id="new_password_confirm" name="new_password_confirm" autocomplete="new-password" required>
+    </div>
+    <div class="form-actions">
+      <button id="save-password" class="btn" type="submit">{{ ui.icon("save") }}Modifier le mot de passe</button>
+    </div>
+  </form>
+</section>
+
+<script type="application/json"
+  id="page-data">{{ {"userId": edited_user.id, "isAdmin": user.is_admin} | tojson }}</script>
 {% endblock %}
 
-{% block extra_js %}
-    <script>
-        async function submitForm() {
-            {% if not auth_user.is_admin %}
-            const old_password = document.getElementById('old_password').value;
-            {% else %}
-            const old_password = null;
-            {% endif %}
-
-            const new_password = document.getElementById('new_password').value;
-            const new_password_confirm = document.getElementById('new_password_confirm').value;
-
-            if (new_password != new_password_confirm) {
-                showMessage('error', 'Les deux mots de passe ne correspondent pas');
-                return;
-            }
-
-            if (old_password == "") {
-                showMessage('error', 'Veuillez entrer votre mot de passe actuel');
-                return;
-            }
-
-            if (new_password == "") {
-                showMessage('error', 'Veuillez entrer un nouveau mot de passe');
-                return;
-            }
-
-            if (new_password_confirm == "") {
-                showMessage('error', 'Veuillez confirmer votre nouveau mot de passe');
-                return;
-            }
-
-            const user_id = document.getElementById('user_id').value;
-
-            try
-            {
-                const response = await fetch('/smaug/api/passedit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        old_password: old_password,
-                        new_password: new_password,
-                        user_id: parseInt(user_id)
-                    })
-                });
-                const data = await response.json();
-                
-                if (isApiSuccess(data)) {
-                    alert(getApiData(data));
-                    {% if auth_user.is_admin %}
-                    window.location.href = "/smaug/admin/editusers"
-                    {% else %}
-                    window.location.href = "/smaug/home"
-                    {% endif %}
-                } else {
-                    showMessage('error', getApiMessage(data));
-                }
-            }
-            catch(e) {
-                showMessage('error', e);
-            }
-        }
-    </script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-password.js"></script>
 {% endblock %}

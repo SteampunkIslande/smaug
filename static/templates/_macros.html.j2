@@ -1,0 +1,17 @@
+{% macro icon(name, class_name="") -%}
+<svg class="icon {{ class_name }}" aria-hidden="true"><use href="#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{% macro pagination() %}
+<nav id="pagination" class="pagination" aria-label="Pagination" hidden>
+  <button type="button" class="pagination-btn" data-page-action="first" aria-label="Première page">{{ icon("first") }}</button>
+  <button type="button" class="pagination-btn" data-page-action="prev" aria-label="Page précédente">{{ icon("prev") }}</button>
+  <label class="pagination-info">Page <input id="page-input" class="pagination-input" type="number" min="1" value="1"> <span id="page-info">/ 1</span></label>
+  <button type="button" class="pagination-btn" data-page-action="next" aria-label="Page suivante">{{ icon("next") }}</button>
+  <button type="button" class="pagination-btn" data-page-action="last" aria-label="Dernière page">{{ icon("last") }}</button>
+</nav>
+{% endmacro %}
+
+{% macro empty(text) %}
+<p class="empty-state">{{ text }}</p>
+{% endmacro %}

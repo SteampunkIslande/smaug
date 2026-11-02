@@ -1,71 +1,34 @@
 {% extends "base.html.j2" %}
 
-{% block title %}Connexion - Smaug{% endblock %}
-
-{% block banner_text %} Connexion {% endblock %}
-{% block banner_actions %}{% endblock %}
-
-{% block body_attrs %} onload="init()"{% endblock %}
-
-{% block main_layout %}
+{% block title %}Connexion | SMAUG{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
 {% block content %}
-    <div class="container">
-        <form id="loginForm" onsubmit="onConnect(event)">
-            <div>
-                <label for="usermail">Adresse e-mail:</label>
-                <input type="text" id="usermail" name="usermail" placeholder="Adresse e-mail" required>
-            </div>
-            <div>
-                <label for="password">Mot de passe:</label>
-                <input type="password" id="password" name="password" placeholder="Mot de passe" required>
-            </div>
-        <a id="loginButton" class="btn btn-primary" onclick="onConnect(event)" type="submit">Se connecter</a>
-        <a href="/smaug" class="btn btn-secondary">Retour</a>
-        <button type="submit" style="display: none;" tabindex="-1" aria-hidden="true"></button>
-        </form>
-    </div>
+<div class="auth-layout">
+  <section class="auth-card" aria-labelledby="login-title">
+    <p class="eyebrow">Espace sécurisé</p>
+    <h1 id="login-title">Connexion</h1>
+    <p>Accédez à vos analyses et à vos formulaires SMAUG.</p>
 
-{% endblock content %}
-
-{% block messages %} {{ super() }} {% endblock %}
-
-{% block extra_js %}
-    <script>
-        async function onConnect(event) {
-            if (event) {
-                event.preventDefault();
-            }
-            const usermail = document.getElementById('usermail').value;
-            const password = document.getElementById('password').value;
-
-            try {
-                const response = await fetch('/smaug/api/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ usermail, password })
-                });
-
-                if (response.status === 200) {
-                    window.location.href = response.url;
-                } else {
-                    const data = await response.json();
-                    showMessage("error", getApiMessage(data));
-                    init();
-                }
-            } catch (error) {
-                showMessage("error", error);
-                init();
-            }
-        }
-
-        function init() {
-            document.getElementById('loginForm').reset();
-        }
-    </script>
+    <form id="login-form" class="form">
+      <div class="field">
+        <label for="usermail">Adresse e-mail</label>
+        <input type="email" id="usermail" name="usermail" placeholder="prenom.nom@exemple.fr" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" name="password" placeholder="Votre mot de passe" autocomplete="current-password" required>
+      </div>
+      <div class="form-actions">
+        <button id="login-button" class="btn" type="submit">Se connecter</button>
+        <a class="btn btn-secondary" href="/smaug">Retour</a>
+      </div>
+    </form>
+  </section>
+</div>
 {% endblock %}
 
-{% endblock main_layout %}
-
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/login.js"></script>
+{% endblock %}

@@ -17,64 +17,109 @@ pub struct JobStatus {
     pub reason: String,
 }
 
-struct CacheEntry {
-    jobs: Vec<JobStatus>,
-    fetched_at: Instant,
+/// Result of a squeue lookup.
+///
+/// A failure is a first-class cached outcome: unlike a missing cache entry, it
+/// has a (short) TTL and therefore resolves itself on a later poll.
+#[derive(Clone, Debug)]
+pub enum SqueueSnapshot {
+    NoJobName,
+    Available {
+        job_name: String,
+        jobs: Vec<JobStatus>,
+    },
+    Unavailable {
+        job_name: String,
+        message: String,
+    },
 }
 
-pub struct SqueueCache {
-    entries: RwLock<HashMap<String, CacheEntry>>,
+struct CacheEntry {
+    job_name: String,
+    snapshot: SqueueSnapshot,
+    fetched_at: Instant,
     ttl: Duration,
+}
+
+/// Per-attempt cache of `squeue` answers.
+///
+/// It is deliberately keyed by `(run_id, attempt_number)`, not by job name:
+/// this is the identifier the rest of the application uses to follow a given
+/// analysis. The job name is remembered in the entry so a new workflow (a new
+/// `SLURM run ID`) invalidates the previous answer automatically.
+pub struct SqueueCache {
+    entries: RwLock<HashMap<(i64, u32), CacheEntry>>,
+    ttl: Duration,
+    failure_ttl: Duration,
 }
 
 impl SqueueCache {
     pub fn new(ttl_seconds: u64) -> Self {
+        let ttl = Duration::from_secs(ttl_seconds);
         Self {
             entries: RwLock::new(HashMap::new()),
-            ttl: Duration::from_secs(ttl_seconds),
+            ttl,
+            // Retry a failing `squeue` sooner than a successful query, but never
+            // on every HTTP poll.
+            failure_ttl: ttl.min(Duration::from_secs(5)),
         }
     }
 
-    pub async fn get(&self, job_name: &str) -> Option<Vec<JobStatus>> {
+    pub async fn get(&self, run_id: i64, attempt_number: u32, job_name: &str) -> SqueueSnapshot {
         let job_name = job_name.trim();
         if job_name.is_empty() {
-            return None;
+            return SqueueSnapshot::NoJobName;
         }
 
-        let cached = {
+        let key = (run_id, attempt_number);
+        {
             let entries = self.entries.read().await;
-            entries
-                .get(job_name)
-                .filter(|entry| entry.fetched_at.elapsed() < self.ttl)
-                .map(|entry| entry.jobs.clone())
+            if let Some(entry) = entries.get(&key)
+                && entry.job_name == job_name
+                && entry.fetched_at.elapsed() < entry.ttl
+            {
+                return entry.snapshot.clone();
+            }
+        }
+
+        let snapshot = match fetch_squeue_from_slurm(job_name).await {
+            Ok(jobs) => SqueueSnapshot::Available {
+                job_name: job_name.to_string(),
+                jobs,
+            },
+            Err(message) => SqueueSnapshot::Unavailable {
+                job_name: job_name.to_string(),
+                message,
+            },
         };
 
-        if let Some(jobs) = cached {
-            return Some(jobs);
-        }
-
-        let jobs = fetch_squeue_from_slurm(job_name).await?;
+        let ttl = match &snapshot {
+            SqueueSnapshot::Unavailable { .. } => self.failure_ttl,
+            _ => self.ttl,
+        };
 
         let mut entries = self.entries.write().await;
-        entries.retain(|_, entry| entry.fetched_at.elapsed() < self.ttl);
+        entries.retain(|_, entry| entry.fetched_at.elapsed() < entry.ttl);
         entries.insert(
-            job_name.to_string(),
+            key,
             CacheEntry {
-                jobs: jobs.clone(),
+                job_name: job_name.to_string(),
+                snapshot: snapshot.clone(),
                 fetched_at: Instant::now(),
+                ttl,
             },
         );
 
-        Some(jobs)
+        snapshot
     }
 
-    pub async fn invalidate(&self, job_name: &str) {
-        self.entries.write().await.remove(job_name);
+    pub async fn invalidate(&self, run_id: i64, attempt_number: u32) {
+        self.entries.write().await.remove(&(run_id, attempt_number));
     }
 }
 
-pub async fn fetch_squeue_from_slurm(job_name: &str) -> Option<Vec<JobStatus>> {
-    let output = tokio::time::timeout(
+pub async fn fetch_squeue_from_slurm(job_name: &str) -> Result<Vec<JobStatus>, String> {
+    let output = match tokio::time::timeout(
         Duration::from_secs(5),
         Command::new("squeue")
             .args([
@@ -87,22 +132,30 @@ pub async fn fetch_squeue_from_slurm(job_name: &str) -> Option<Vec<JobStatus>> {
             .output(),
     )
     .await
-    .ok()?
-    .ok()?;
+    {
+        Ok(Ok(output)) => output,
+        Ok(Err(e)) => return Err(format!("Impossible de lancer squeue : {e}")),
+        Err(_) => return Err("squeue n’a pas répondu dans les 5 secondes".to_string()),
+    };
 
     if !output.status.success() {
-        return None;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = stderr.trim();
+        return Err(if stderr.is_empty() {
+            format!("squeue a échoué ({})", output.status)
+        } else {
+            format!("squeue a échoué ({}): {stderr}", output.status)
+        });
     }
 
-    let stdout = String::from_utf8(output.stdout).ok()?;
+    let stdout = String::from_utf8(output.stdout)
+        .map_err(|e| format!("La sortie de squeue n’est pas de l’UTF-8 valide : {e}"))?;
 
-    Some(
-        stdout
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .filter_map(parse_job_line)
-            .collect(),
-    )
+    Ok(stdout
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .filter_map(parse_job_line)
+        .collect())
 }
 
 fn parse_job_line(line: &str) -> Option<JobStatus> {
@@ -143,5 +196,15 @@ mod tests {
     #[test]
     fn rejects_incomplete_squeue_line() {
         assert!(parse_job_line("12345|pipeline-job|RUNNING").is_none());
+    }
+
+    #[tokio::test]
+    async fn empty_job_name_is_answered_without_querying_squeue() {
+        let cache = SqueueCache::new(30);
+
+        assert!(matches!(
+            cache.get(1, 1, "   ").await,
+            SqueueSnapshot::NoJobName
+        ));
     }
 }

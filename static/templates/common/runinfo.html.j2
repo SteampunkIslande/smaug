@@ -1,79 +1,85 @@
-<div id="run-details" style="display: flex; height: 400px;">
-    <div id="basic-info" style="flex: 1;">
-        <h2>Détails du run</h2>
-        <div>
-            <label><strong>Numéro de la tentative:</strong></label>
-            <span>{{ attempt.attempt_number }}</span>
-        </div>
-        <div>
-            <label><strong>Nom du run:</strong></label>
-            <span>{{ run.run_name }}</span>
-        </div>
-        <div>
-            <label><strong>Formulaire:</strong></label>
-            <span>{{ form.name }}</span>
-        </div>
-        <div>
-            <label><strong>Run créé le:</strong></label>
-            <span>{{ run_creation_date }}</span>
-        </div>
-        {% if attempt_date %}
-        <div>
-            <label><strong>Tentative démarrée le:</strong></label>
-            <span>{{ attempt_date }}</span>
-        </div>
-        {% endif %}
-        {% if attempt.comment %}
-        <div>
-            <label><strong>Commentaire:</strong></label>
-            <span>{{ attempt.comment }}</span>
-        </div>
-        {% endif %}
+{% import "_macros.html.j2" as ui %}
+<section class="panel" aria-labelledby="run-details-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("file", "section-icon") }}<h2 id="run-details-title">Détails du run</h2>
     </div>
-
-    <div id="attempts" style="display: flex; flex-direction: column; flex: 1; margin-left: 20px;">
-        <h2>Tentatives</h2>
-        <div class="attempt-list">
-            {% if run.status == "Idle" %}
-            <div class="run-attempt idle">
-                <a href="/smaug/show/run/{{ run.run_id }}"><strong>Tentative actuelle</strong></a>
-            </div>
-            {% endif %}
-            {% include "common/attemptlist.html.j2" %}
-        </div>
-    </div>
+    <span class="soft-badge">Tentative {{ attempt.attempt_number }}</span>
+  </div>
+  <div class="grid-2">
+    <dl class="run-meta">
+      <div class="info-row">
+        <dt>Nom du run</dt>
+        <dd>{{ run.run_name }}</dd>
+      </div>
+      <div class="info-row">
+        <dt>Formulaire</dt>
+        <dd>{{ form.name }}</dd>
+      </div>
+      <div class="info-row">
+        <dt>Run créé le</dt>
+        <dd>{{ run_creation_date }}</dd>
+      </div>
+      {% if attempt_date %}<div class="info-row">
+        <dt>Tentative démarrée le</dt>
+        <dd>{{ attempt_date }}</dd>
+      </div>{% endif %}
+      {% if attempt.comment %}<div class="info-row">
+        <dt>Commentaire</dt>
+        <dd>{{ attempt.comment }}</dd>
+      </div>{% endif %}
+    </dl>
+    <div>
+      <h3>Tentatives</h3>
+      <div class="attempt-list">
+        {% if run.status == "Idle" %}
+<div class="run-attempt idle">
+  <a href="/smaug/show/run/{{ run.run_id }}">{% if attempt.status == "Idle" %}<strong>{% endif %}Tentative actuelle{% if attempt.status == "Idle" %}</strong>{% endif %}<span>À valider</span></a>
 </div>
-
-<h3>Variables</h3>
-{% if form.variables %}
-<div id="run-variables">
-    {% for var in form.variables %}
-    <div class="form-variable">
-        <label><strong>{{ var.title }}:</strong></label>
-        <span>{% if attempt.user_defined_vars[var.name] %}{{ attempt.user_defined_vars[var.name] }}{% else %}—{% endif
-            %}</span>
-        {% if var.description %}
-        <small class="var-description">{{ var.description }}</small>
         {% endif %}
+        {% include "common/attemptlist.html.j2" %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel" aria-labelledby="run-variables-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("sliders", "section-icon") }}<h2 id="run-variables-title">Variables</h2>
+    </div>
+  </div>
+  {% if form.variables %}
+  <dl class="variables">
+    {% for var in form.variables %}
+    <div class="var-item">
+      <dt>{{ var.title }}</dt>
+      <dd>{% if attempt.user_defined_vars[var.name] %}{{ attempt.user_defined_vars[var.name] }}{% else %}—{% endif %}
+      </dd>
+      {% if var.description %}<dd class="var-description">{{ var.description }}</dd>{% endif %}
     </div>
     {% endfor %}
-</div>
-{% else %}
-<p>Aucune variable définie pour ce formulaire.</p>
-{% endif %}
+  </dl>
+  {% else %}
+  <p class="empty-state">Aucune variable définie pour ce formulaire.</p>
+  {% endif %}
+</section>
 
 {% if exports %}
-<h3>Fichiers exportés</h3>
-{% for section in exports %}
-<h4>{{ section.title | e }}</h4>
-<table>
-    <tbody>
+<section class="panel" aria-labelledby="exports-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("download", "section-icon") }}<h2 id="exports-title">Fichiers exportés</h2>
+    </div>
+  </div>
+  <div class="exports">
+    {% for section in exports %}
+    <details class="export-group">
+      <summary>{{ section.title | e }}</summary>
+      <div class="export-list">
         {% for file in section.files %}
-        <tr>
-            <td><a href="{{ file.url | e }}">{{ file.name | e }}</a></td>
-        </tr>
+        <a href="{{ file.url | e }}" target="_blank" rel="noopener">{{ file.name | e }}</a>
         {% endfor %}
-    </tbody>
-</table>
-{% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+</section>
 {% endif %}

@@ -1,73 +1,48 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Administration - Création d'utilisateur{% endblock %}
-
-{% block banner_text %}Administration - Création d'utilisateur{% endblock %}
-
-{% block body_attrs %} onload="init()"{% endblock %}
+{% block title %}Créer un utilisateur | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
-    <div class="container">
-        <form id="registerForm" class="form-vertical" style="margin: 1em auto;" onsubmit="submitForm(event)">
-            <div>
-                <label for="usermail">Adresse e-mail:</label>
-                <input type="email" id="usermail" name="usermail" placeholder="Adresse e-mail" autocomplete="off" >
-            </div>
-            <div>
-                <label for="username">Nom d'utilisateur:</label>
-                <input type="text" id="username" name="username" placeholder="Nom d'utilisateur" autocomplete="off" >
-            </div>
-            <div>
-                <label for="password">Mot de passe:</label>
-                <input type="password" id="password" name="password" placeholder="Mot de passe" autocomplete="new-password" >
-            </div>
-            <a href="/smaug/admin/dashboard" class="btn btn-secondary">Retour au tableau de bord</a>
-            <a id="create-user-button" class="btn btn-primary" onclick="submitForm(event)" type="submit">Créer l'utilisateur</a>
-            <button type="submit" style="display: none;" tabindex="-1" aria-hidden="true"></button>
-            </form>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Administration · utilisateurs</p>
+    <h1>Créer un utilisateur</h1>
+    <p>Le compte pourra se connecter avec l’adresse e-mail fournie.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/admin/editusers">{{ ui.icon("users") }}Utilisateurs</a>
+  </div>
+</header>
+
+<section class="panel form-card">
+  <div class="panel-title">
+    <div>{{ ui.icon("user-plus", "section-icon") }}<h2>Identité</h2></div>
+  </div>
+  <form id="register-form" class="form">
+    <div class="form-grid">
+      <div class="field">
+        <label for="usermail">Adresse e-mail</label>
+        <input type="email" id="usermail" name="usermail" placeholder="prenom.nom@exemple.fr" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="username">Nom d’utilisateur</label>
+        <input type="text" id="username" name="username" placeholder="Nom d’utilisateur" autocomplete="off" required>
+      </div>
     </div>
+    <div class="field">
+      <label for="password">Mot de passe</label>
+      <input type="password" id="password" name="password" placeholder="Mot de passe" autocomplete="new-password" required>
+    </div>
+    <div class="form-actions">
+      <button id="create-user" class="btn" type="submit">{{ ui.icon("user-plus") }}Créer l’utilisateur</button>
+      <a class="btn btn-secondary" href="/smaug/admin/dashboard">Annuler</a>
+    </div>
+  </form>
+</section>
 {% endblock %}
 
-{% block extra_js %}
-    <script>
-        async function submitForm(event) {
-            if (event) {
-                event.preventDefault();
-            }
-            const usermail = document.getElementById('usermail').value;
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-
-            try {
-                const response = await fetch('/smaug/api/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ usermail, username, password })
-                });
-                const data = await response.json();
-                if (isApiSuccess(data)) {
-                    showMessage('success', 'Utilisateur créé avec succès');
-                    clearForm();
-                } else {
-                    showMessage('error', getApiMessage(data));
-                }
-            } catch (error) {
-                showMessage('error', error);
-            }
-        }
-
-        function clearForm() {
-            const container = document.getElementById('registerForm');
-            if (container) {
-                const inputs = container.querySelectorAll('input');
-                inputs.forEach(input => input.value = '');
-            }
-        }
-
-        function init() {
-            clearForm();
-        }
-    </script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-register.js"></script>
 {% endblock %}

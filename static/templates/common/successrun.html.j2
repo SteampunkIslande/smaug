@@ -1,22 +1,25 @@
 {% extends "common/run_base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Run terminé avec succès{% endblock %}
-
-{% block banner_text %}Succès{% endblock %}
+{% block title %}Run terminé | {{ run.run_name }}{% endblock %}
 
 {% block content %}
-<h2>L'analyse s'est terminée avec succès</h2>
-<p>La tentative {{ attempt.attempt_number }} s'est terminée avec succès.</p>
-
-<div style="margin-top: 30px; text-align: left;">
-    <a id="back-to-runs" class="btn btn-secondary" href="/smaug/show/runs">Retour</a>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Analyse · succès</p>
+    <h1>{{ run.run_name }} - Tentative {{ attempt.attempt_number }}</h1>
+    <p>La tentative {{ attempt.attempt_number }} s’est terminée avec succès.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
     {% if run.status in ("Idle", "Pending", "Running") %}
-    <a id="analysis-current" class="btn btn-primary" href="/smaug/show/run/{{ run.run_id }}">Voir la tentative
-        actuelle</a>
+    <a class="btn" href="/smaug/show/run/{{ run.run_id }}">{{ ui.icon("clock") }}Tentative actuelle</a>
     {% else %}
-    <a id="analysis-retry" class="btn btn-primary" onclick="restartRun()">Relancer</a>
+    <button type="button" class="btn" data-run-action="retry">{{ ui.icon("refresh") }}Relancer</button>
     {% endif %}
-</div>
+  </div>
+</header>
 
 {% include "common/runinfo.html.j2" %}
+{% include "common/advanced.html.j2" %}
 {% endblock %}

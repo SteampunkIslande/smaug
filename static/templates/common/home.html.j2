@@ -1,244 +1,71 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Group Forms{% endblock %}
+{% block title %}SMAUG — Tableau de bord{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
 
-{% block extra_head %}
-<script src="/smaug/static/scripts/json_table.js"></script>
+{% block topbar_search %}
+<div class="top-search">
+  {{ ui.icon("search") }}
+  <input id="globalSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire ou une analyse…">
+</div>
 {% endblock %}
-
-{% block banner_text %}Bienvenue, {{user.username }}{% endblock %}
-
-{% block body_attrs %} onload="init()" onclick="closeDropdowns(event)"{% endblock %}
 
 {% block content %}
-<div class="dropdown">
-    <button onclick="navigateTo(`/smaug/show/runs`)" class="dropbtn"><span
-            class="material-icons icon-align">science</span> Voir tous mes runs</button>
-</div>
-<div class="dropdown" style="float:right;margin-left: 8px;">
-    <button onclick="navigateTo(`/smaug/documentation`)" class="dropbtn"><span
-            class="material-icons icon-align">help</span>Aide</button>
-</div>
-{% if is_admin %}
-<div class="dropdown" style="float:right;">
-    <button onclick="navigateTo(`/smaug/admin/dashboard`)" class="dropbtn"><span
-            class="material-icons icon-align">settings</span>Administration</button>
-</div>
-{% else %}
-<div class="dropdown" style="float:right;">
-    <button onclick="navigateTo(`/smaug/passedit/{{ user.id }}`)" class="dropbtn"><span
-            class="material-icons icon-align">key</span>Modifier le mot de passe</button>
-</div>
-{% endif %}
+<section class="hero" aria-labelledby="welcome-title">
+  <div class="hero-text">
+    <h1 id="welcome-title">Bienvenue, <span>{{ user.username }}</span></h1>
+    <p>Sur la plateforme SMAUG, dédiée aux analyses de données en génomique</p>
+    <span class="hero-red-stroke" aria-hidden="true"></span>
+  </div>
+  <div class="hero-motto" aria-label="Analyser, comprendre, partager, au service de la génomique">
+    <span>ANALYSER</span>
+    <span>COMPRENDRE</span>
+    <span>PARTAGER</span>
+    <span class="motto-break">AU SERVICE</span>
+    <span>DE LA GÉNOMIQUE</span>
+    <span class="motto-stroke" aria-hidden="true"></span>
+  </div>
+</section>
 
-<h1>Formulaires</h1>
 
-<div>
-    <div class="tab">
-        {% for group in user_groups %}
-
-        <button id="tab-{{ group.id }}" class="tablinks{% if loop.first %} active {% endif %}"
-            onclick="openTab(event,{{ group.id }})">{{ group.name}}</button>
-        {% endfor %}
-        {% if user.is_admin %}
-        <button id="tab-None" class="tablinks" onclick="openTab(event,`None`)">Formulaires sans groupe</button>
-        {% endif %}
+<div class="bottom-grid">
+  <section id="forms" class="panel" aria-labelledby="forms-title">
+    <div class="panel-title">
+      <div>{{ ui.icon("flask", "section-icon") }}<h2 id="forms-title">Lancer une analyse</h2></div>
+      <span id="availableCount" class="soft-badge"></span>
     </div>
-
-    <div style="border: 1px solid #ccc; border-top: none; padding: 10px;">
-        <div id="search-forms" style="display: flex; gap: 0.5em; align-items: center;">
-            <input type="text" name="q" placeholder="Rechercher un formulaire..."
-                style="padding: 0.5em; width: 250px; border-radius: 4px; border: 1px solid #bbb;"
-                oninput="filterForms()">
-        </div>
+    <div class="filterline">
+      <label class="panel-search">
+        {{ ui.icon("search") }}
+        <input id="formSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire…">
+      </label>
+      <button type="button" id="resetFilters" class="filter-clear" hidden>Réinitialiser ×</button>
     </div>
+    <div id="groupTabs" class="form-tabs" role="tablist" aria-label="Groupes autorisés"></div>
+    <div id="formList" class="form-list" aria-live="polite">
+      <p class="empty-state">Chargement des formulaires…</p>
+    </div>
+    <p id="no-user-group" class="panel-footnote" hidden>Vous n’appartenez à aucun groupe. Veuillez contacter votre administrateur système.</p>
+  </section>
 
-    {% for group in user_groups %}
-    <table id="forms-container-{{ group.id }}" class="tabcontent" style="{% if loop.first %}display: block; {% endif
-            %}overflow-y:auto;height:400px;">
-        <tr>
-            <th class="content-column">Nom du formulaire</th>
-            <th class="numeric-column padding-x centered">Lancement d'un run</th>
-        </tr>
-    </table>
-    {% endfor %}
-    {% if user.is_admin %}
-    <table id="forms-container-None" class="tabcontent" style="overflow-y:auto;height:400px;">
-        <tr>
-            <th class="content-column">Nom du formulaire</th>
-            <th class="numeric-column padding-x centered">Lancement d'un run</th>
-        </tr>
-    </table>
-    {% endif %}
-
+  <section id="runs" class="panel" aria-labelledby="runs-title">
+    <div class="panel-title">
+      <div>{{ ui.icon("chart", "section-icon") }}<h2 id="runs-title">Runs récents</h2></div>
+      <a href="/smaug/show/runs" class="text-link">Voir tous mes runs {{ ui.icon("arrow") }}</a>
+    </div>
+    <div id="latest-runs-table" class="table-scroll" aria-live="polite"></div>
+  </section>
 </div>
-<p id="no-user-group" style="display:none;">
-    Vous n'appartenez à aucun groupe. Veuillez contacter votre administrateur système
-</p>
 
-<h1>Runs récents</h1>
-<div id="latest-runs-table">
-</div>
+<footer class="footer">
+  <span>SMAUG · Suite Modulaire d’Analyses Unifiées en Génomique</span>
+  <span>Interface de lancement et de suivi des analyses</span>
+</footer>
+
+<script type="application/json" id="page-data">{{ {"groups": user_groups, "isAdmin": user.is_admin} | tojson }}</script>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-    function onDropDown(element) {
-        document.getElementById(element).classList.toggle("show");
-    }
-    function navigateTo(uri) {
-        window.location.href = uri;
-    }
-
-    function closeDropdowns(event) {
-        if (!event.target.matches('.dropbtn')) {
-            var dropdowns = document.getElementsByClassName("dropdown-content");
-            var i;
-            for (i = 0; i < dropdowns.length; i++) {
-                var openDropdown = dropdowns[i];
-                if (openDropdown.classList.contains('show')) {
-                    openDropdown.classList.remove('show');
-                }
-            }
-        }
-    }
-
-    function openTab(evt, group_id) {
-        var i, tabcontent, tablinks;
-
-        tabcontent = document.getElementsByClassName("tabcontent");
-        for (i = 0; i < tabcontent.length; i++) {
-            tabcontent[i].style.display = "none";
-        }
-
-        tablinks = document.getElementsByClassName("tablinks");
-        for (i = 0; i < tablinks.length; i++) {
-            tablinks[i].className = tablinks[i].className.replace(" active", "");
-        }
-
-        document.getElementById(`forms-container-${group_id}`).style.display = "block";
-        evt.currentTarget.className += " active";
-    }
-
-    const userGroups = {{ user_groups | tojson }};
-    async function fetchAndRenderForms(groupId, listKey) {
-        try {
-            const response = await fetch(`/smaug/api/groups/forms/${groupId}`);
-            const result = await response.json();
-
-            if (!isApiSuccess(result)) {
-                throw new Error(getApiMessage(result) || "Erreur inconnue");
-            }
-
-            const formsData = getApiData(result);
-            const forms = formsData[listKey] || [];
-
-            let table = document.getElementById(`forms-container-${groupId}`);
-            if (!table) return;
-
-            let container = table.querySelector('tbody') || table;
-
-            forms.forEach(form => {
-                const formBox = document.createElement('tr');
-                let submitUrl = "#";
-
-                // The switch/case handles different variants smoothly.
-                switch (form.form_id) {
-                    case "GitBranchAndPath": {
-                        // FIX: Because of #[serde(flatten)], branch and file_path are on the root 'form' object, 
-                        // not inside 'form.form_id' (which is just the string tag "GitBranchAndPath").
-                        const { branch, file_path } = form;
-                        submitUrl = `/smaug/runs/submit/branch/${branch}/${file_path}`;
-                        break;
-                    }
-                    case "GitCommit": {
-                        const { hash, file_path } = form;
-                        submitUrl = `/smaug/runs/submit/commit/${hash}/${file_path}`;
-                        break;
-                    }
-                    default:
-                        console.warn(`Unknown form_id type: ${form.form_id}`);
-                        break;
-                }
-
-                formBox.innerHTML = `
-               <td class="content-column">${form.name}<br>${form.description}</td>
-               <td class="numeric-column">
-                   <a href="${submitUrl}" class="inline-table centered">Lancer un run</a>
-               </td>
-            `;
-                container.appendChild(formBox);
-            });
-        } catch (error) {
-            showMessage("error", `Erreur lors du chargement des formulaires du groupe ${groupId} : ${error.message}`);
-        }
-    }
-
-    async function loadGroupForms() {
-        const fetchTasks = [];
-
-        if (userGroups && userGroups.length > 0) {
-            // Queue all group fetches to run concurrently
-            userGroups.forEach(group => {
-                fetchTasks.push(fetchAndRenderForms(group.id, "with_group"));
-            });
-        } else {
-            console.log("User has no groups!");
-            const noGroupElement = document.getElementById("no-user-group");
-            if (noGroupElement) noGroupElement.style.display = "block";
-        }
-
-        {% if user.is_admin %}
-        // I moved this outside the (userGroups.length > 0) check.
-        // Previously, if an admin had 0 groups, the "None" forms wouldn't load!
-        fetchTasks.push(fetchAndRenderForms("None", "without_group"));
-        {% endif %}
-
-        // Await all network requests simultaneously
-        await Promise.all(fetchTasks);
-    }
-    async function lastRuns() {
-        try {
-            const response = await fetch(`/smaug/api/listruns?page=1&page_size=5`);
-            const json = await response.json();
-            if (isApiSuccess(json)) {
-                const data = getApiData(json);
-                if (data.table.length > 0) {
-                    generateJsonTable(data, "latest-runs-table");
-                } else {
-                    document.getElementById("latest-runs-table").innerHTML = `<p>Aucune donnée à afficher.</p>`;
-                }
-            } else {
-                showMessage("error", getApiMessage(json) || "Erreur inconnue");
-            }
-        } catch (error) {
-            showMessage("error", error);
-        }
-    }
-
-    function filterForms() {
-        const queryString = document.querySelector('#search-forms input[name="q"]').value;
-        const lowerQuery = queryString.toLowerCase();
-        userGroups.forEach(group => {
-            const table = document.getElementById(`forms-container-${group.id}`);
-            const rows = table.getElementsByTagName('tr');
-            for (let i = 1; i < rows.length; i++) {
-                const formNameCell = rows[i].getElementsByTagName('td')[0];
-                if (formNameCell) {
-                    const formName = formNameCell.textContent || formNameCell.innerText;
-                    if (formName.toLowerCase().indexOf(lowerQuery) > -1) {
-                        rows[i].style.display = "";
-                    } else {
-                        rows[i].style.display = "none";
-                    }
-                }
-            }
-        });
-    }
-
-    async function init() {
-        await loadGroupForms();
-        await lastRuns();
-    }
-</script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/home.js"></script>
 {% endblock %}

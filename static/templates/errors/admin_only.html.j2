@@ -1,17 +1,15 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Accès Protégé{% endblock %}
-
-{% block banner %}{% endblock %}
-
-{% block messages %}{% endblock %}
-
-{% block body_attrs %} class="bg-light flex-center vh-100"{% endblock %}
+{% block title %}Accès protégé | SMAUG{% endblock %}
 
 {% block content %}
-    <div class="card">
-        <h2 class="title text-danger">Accès protégé</h2>
-        <p class="paragraph">Vous devez être administrateur pour accéder à cette ressource.</p>
-        <a href="/smaug/home" class="btn btn-primary">Retour à l'accueil</a>
-    </div>
+<div class="state-page">
+  <section class="state-card">
+    {{ ui.icon("lock") }}
+    <h1>Accès protégé</h1>
+    <p>Vous devez être administrateur pour accéder à cette ressource.</p>
+    <a class="btn" href="/smaug/home">{{ ui.icon("home") }}Retour à l’accueil</a>
+  </section>
+</div>
 {% endblock %}

@@ -1,9 +1,9 @@
 {% set status_labels = {
-    "Idle": "A valider",
+    "Idle": "À valider",
     "Pending": "En attente",
     "Running": "Analyses en cours",
     "Success": "Succès",
-    "Failure": "Echec"
+    "Failure": "Échec"
 } %}
 {% set status_classes = {
     "Idle": "idle",
@@ -14,17 +14,12 @@
 } %}
 {% for att in history %}
 {% set status_key = att.status if att.status is string else "Failure" %}
-{% set status_label = status_labels[status_key] | default("Echec") %}
+{% set status_label = status_labels[status_key] | default("Échec") %}
 {% set status_class = status_classes[status_key] | default("failure") %}
 <div class="run-attempt {{ status_class }}">
-    <a href="/smaug/show/run/{{ run.run_id }}?attempt_number={{ att.attempt_number }}">
-        <strong>Tentative {{ att.attempt_number }}:</strong>
-        <span>
-            {{ status_label }}
-            {% if att.commit_hash %}
-            <small>({{ att.commit_hash[:7] }})</small>
-            {% endif %}
-        </span>
-    </a>
+  <a href="/smaug/show/run/{{ run.run_id }}?attempt_number={{ att.attempt_number }}">
+    {% if att.attempt_number == attempt.attempt_number %}<strong>{% endif %}Tentative {{ att.attempt_number }}{% if att.attempt_number == attempt.attempt_number %}</strong>{% endif %}
+    <span>{{ status_label }}{% if att.commit_hash %} <small>({{ att.commit_hash[:7] }})</small>{% endif %}</span>
+  </a>
 </div>
 {% endfor %}

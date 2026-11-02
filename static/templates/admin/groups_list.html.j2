@@ -1,143 +1,34 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Edition des groupes de {{ user.username }}{% endblock %}
-
-{% block banner_text %}Edition des groupes de {{ user.username }}{% endblock %}
-
-{% block body_attrs %} onload="init()"{% endblock %}
+{% block title %}Groupes de {{ edited_user.username }} | SMAUG{% endblock %}
+{% block body_class %}admin-page{% endblock %}
 
 {% block content %}
-<!-- Use a data attribute to pass server-side variables to JS -->
-<div id="groups-container" data-user-id="{{ user.id }}">
-    <p>Chargement...</p>
-</div>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Administration · groupes</p>
+    <h1>Groupes de {{ edited_user.username }}</h1>
+    <p>Cochez les groupes auxquels cet utilisateur doit appartenir.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/admin/editusers">{{ ui.icon("arrow-left") }}Utilisateurs</a>
+  </div>
+</header>
 
-<!-- Removed inline styles in favor of classes and removed inline onclick handler -->
-<div class="mt-4 d-flex justify-content-start gap-2">
-    <a class="btn btn-secondary" href="/smaug/admin/editusers">Retour à la liste des utilisateurs</a>
-    <a class="btn btn-primary" id="btn-update-groups">Mettre à jour les groupes</a>
-</div>
+<section id="groups-container" class="panel form-card" data-user-id="{{ edited_user.id }}">
+  <div class="panel-title">
+    <div>{{ ui.icon("network", "section-icon") }}<h2>Groupes disponibles</h2></div>
+  </div>
+  <div id="group-list" class="check-grid" aria-live="polite">
+    <p class="empty-state">Chargement des groupes…</p>
+  </div>
+  <div class="form-actions">
+    <button id="save-groups" type="button" class="btn">{{ ui.icon("save") }}Mettre à jour les groupes</button>
+  </div>
+</section>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-    const groupsContainer = document.getElementById("groups-container");
-    const btnUpdate = document.getElementById("btn-update-groups");
-    const userId = groupsContainer.dataset.userId;
-
-    // Use a Set to store initial group IDs for highly efficient lookups
-    let initialGroupIds = new Set();
-
-    async function init() {
-        try {
-            // Fetch both API endpoints concurrently to halve the loading time
-            const [groupsRes, userGroupsRes] = await Promise.all([
-                fetch("/smaug/api/groups/list"),
-                fetch(`/smaug/api/groups/list/${userId}`)
-            ]);
-
-            if (!groupsRes.ok || !userGroupsRes.ok) {
-                throw new Error("Erreur lors du chargement des données.");
-            }
-
-            const data = await groupsRes.json();
-            const userGroupsData = await userGroupsRes.json();
-
-            const groups = getApiData(data);
-            const userGroups = getApiData(userGroupsData);
-
-            if (!isApiSuccess(data) || !Array.isArray(groups) || groups.length === 0) {
-                groupsContainer.innerHTML = "<p>Aucun groupe n'est défini.</p>";
-                return;
-            }
-
-            // Populate initial state Set
-            initialGroupIds = new Set(userGroups.map(g => String(g.id)));
-
-            // Use DocumentFragment to batch DOM inserts (prevents layout thrashing)
-            const fragment = document.createDocumentFragment();
-
-            groups.forEach((group) => {
-                const isChecked = initialGroupIds.has(String(group.id));
-                const groupDiv = document.createElement("div");
-                groupDiv.className = "group-checkbox";
-
-                // Store group name in a data attribute to avoid querying the DOM later.
-                // Fixed the label 'for' attribute to match input 'id'.
-                groupDiv.innerHTML = `
-                    <input type="checkbox" 
-                           id="group-${group.id}" 
-                           name="selected_groups" 
-                           value="${group.id}" 
-                           data-name="${group.name}"
-                           ${isChecked ? "checked" : ""}>
-                    <label id="label-group-${group.id}" for="group-${group.id}">${group.name}</label>
-                `;
-                fragment.appendChild(groupDiv);
-            });
-
-            groupsContainer.innerHTML = "";
-            groupsContainer.appendChild(fragment);
-
-        } catch (error) {
-            groupsContainer.innerHTML = "";
-            showMessage("error", error.message);
-        }
-    }
-
-    async function submitForm() {
-        const checkboxes = document.querySelectorAll("input[name='selected_groups']");
-        const to_add = [];
-        const to_remove = [];
-
-        checkboxes.forEach(checkbox => {
-            const groupId = checkbox.value;
-            const groupName = checkbox.dataset.name;
-            const wasChecked = initialGroupIds.has(groupId);
-            const isChecked = checkbox.checked;
-
-            if (isChecked && !wasChecked) {
-                to_add.push({ id: parseInt(groupId, 10), name: groupName });
-            } else if (!isChecked && wasChecked) {
-                to_remove.push({ id: parseInt(groupId, 10), name: groupName });
-            }
-        });
-
-        // Optional: Prevent unnecessary API calls if nothing changed
-        if (to_add.length === 0 && to_remove.length === 0) {
-            return showMessage("info", "Aucune modification à enregistrer.");
-        }
-
-        const payload = JSON.stringify({
-            user_id: parseInt(userId, 10),
-            to_add,
-            to_remove
-        });
-
-        try {
-            const response = await fetch("/smaug/api/groups/update", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: payload
-            });
-            const data = await response.json();
-
-            if (!isApiSuccess(data)) {
-                showMessage("error", `Erreur lors de la mise à jour : ${getApiMessage(data)}`);
-            } else {
-                showMessage("info", getApiData(data));
-                await init(); // Re-initialize to reflect changes safely
-            }
-        } catch (error) {
-            showMessage("error", error.message);
-        }
-    }
-
-    // Attach events using Listeners instead of inline HTML properties
-    btnUpdate.addEventListener("click", submitForm);
-
-    // Bootstrap the module
-    init();
-
-</script>
+{% block scripts %}
+<script type="module" src="/smaug/static/js/pages/admin-groups.js"></script>
 {% endblock %}

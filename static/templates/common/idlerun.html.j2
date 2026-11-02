@@ -1,15 +1,22 @@
 {% extends "common/run_base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
-{% block title %}Run en attente de validation{% endblock %}
-
-{% block banner_text %}Run en attente de validation<br>{{ form.name }}{% endblock %}
+{% block title %}Run à valider | {{ run.run_name }}{% endblock %}
 
 {% block content %}
-{% include "common/runinfo.html.j2" %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Analyse · à valider</p>
+    <h1>{{ run.run_name }} - Tentative actuelle</h1>
+    <p>{{ form.name }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/smaug/show/runs">{{ ui.icon("chart") }}Mes analyses</a>
+    <a class="btn btn-secondary" href="/smaug/editrun/{{ run.run_id }}">{{ ui.icon("sliders") }}Modifier</a>
+    <button type="button" class="btn" data-run-action="validate">{{ ui.icon("check") }}Valider</button>
+  </div>
+</header>
 
-<div style="margin-top: 30px; text-align: left;">
-    <a id="back-to-runs" class="btn btn-secondary" href="/smaug/show/runs">Retour</a>
-    <a href="/smaug/editrun/{{ run.run_id }}" class="btn btn-primary">Editer</a>
-    <a id="validate-btn" class="btn btn-primary" onclick="validateRun()">Valider</a>
-</div>
+{% include "common/runinfo.html.j2" %}
+{% include "common/advanced.html.j2" %}
 {% endblock %}

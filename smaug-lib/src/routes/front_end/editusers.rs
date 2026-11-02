@@ -11,5 +11,5 @@ pub async fn edit_users(auth: Authenticated) -> Template {
             context! {user_name=>auth.user.username},
         );
     }
-    Template::render("admin/users_list", context! {})
+    Template::render("admin/users_list", context! {user => auth.user})
 }

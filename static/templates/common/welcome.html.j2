@@ -1,19 +1,42 @@
 {% extends "base.html.j2" %}
 
-{% block title %}Bienvenue sur Smaug{% endblock %}
+{% block title %}SMAUG | GenoBiomics{% endblock %}
+{% block body_class %}signature-page{% endblock %}
 
-{% block banner_text %}Bienvenue sur Smaug{% endblock %}
+{% block shell %}
+<main class="signature" aria-labelledby="signature-title">
+  <div class="signature__dna" aria-hidden="true"></div>
+  <div class="signature__waves" aria-hidden="true"></div>
 
-{% block banner_actions %}{% endblock %}
-
-{% block messages %}{% endblock %}
-
-{% block content %}
-    <div class="container">
-        <h1 class="title">Smaug</h1>
-        <p class="paragraph">Le portail de lancement des analyses de la plateforme GenoBiomics</p>
-        <div>
-            <a href="/smaug/login" class="btn btn-primary">Se connecter</a>
-        </div>
+  <section class="signature__hero">
+    <div class="signature__wordmark">
+      <img class="signature__dragon" src="/smaug/static/img/dragon.png" width="396" height="415" alt="">
+      <h1 id="signature-title"><span class="sr-only">S</span>MAUG</h1>
     </div>
+
+    <p class="signature__acronym"><em>
+      <strong>S</strong>uite <strong>M</strong>odulaire d’<strong>A</strong>nalyses
+      <strong>U</strong>nifiées en <strong>G</strong>énomique
+    </em></p>
+
+    <div class="signature__divider" aria-hidden="true"></div>
+
+    <p class="signature__description">
+      Pipelines et outils d’analyses génomiques<br>
+      humaines, constitutionnelles et somatiques
+    </p>
+
+    <a class="signature__login" href="/smaug/login">
+      <span class="signature__login-avatar" aria-hidden="true">
+        <svg class="signature__login-icon" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="7" r="4"></circle>
+          <path d="M4 21v-2.5a8 8 0 0 1 16 0V21H4Z"></path>
+        </svg>
+      </span>
+      <span class="signature__login-separator" aria-hidden="true"></span>
+      <span class="signature__login-label">Se connecter</span>
+      <span class="signature__arrow" aria-hidden="true">→</span>
+    </a>
+  </section>
+</main>
 {% endblock %}

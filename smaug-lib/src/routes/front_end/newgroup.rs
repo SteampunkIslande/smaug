@@ -10,6 +10,9 @@ pub async fn new_group(auth: Authenticated) -> Result<Template, FrontendError> {
     if !auth.user.is_admin {
         Err(FrontendError::AdminsOnly)
     } else {
-        Ok(Template::render("admin/new_group", context! {}))
+        Ok(Template::render(
+            "admin/new_group",
+            context! {user => auth.user},
+        ))
     }
 }

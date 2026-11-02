@@ -1,15 +1,15 @@
 {% extends "base.html.j2" %}
+{% import "_macros.html.j2" as ui %}
 
 {% block title %}{{ title }}{% endblock %}
 
-{% block banner %}{% endblock %}
-
-{% block messages %}{% endblock %}
-
 {% block content %}
-    <div>
-        <h2>{{ h2 }}</h2>
-        <p>{{ message | safe }}</p>
-        <a href="/smaug/home" class="btn btn-primary">Retour</a>
-    </div>
+<div class="state-page">
+  <section class="state-card">
+    {{ ui.icon("error") }}
+    <h1>{{ h2 }}</h1>
+    <p>{{ message | safe }}</p>
+    <a class="btn" href="/smaug/home">{{ ui.icon("home") }}Retour à l’accueil</a>
+  </section>
+</div>
 {% endblock %}

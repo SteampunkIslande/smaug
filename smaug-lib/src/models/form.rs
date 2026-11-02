@@ -305,7 +305,7 @@ impl Form {
 
     // Define variable names (and types) that will be added at launch time
     // It automatically defines the list of reserved names as a const &'static [&'static str]
-    additional_vars!(attempt_number: u32, outdir: &str, run_id: i64, run_name:&str);
+    additional_vars!(attempt_number: u32, outdir: &str, exports_dir: &str, logs_dir: &str, run_id: i64, run_name:&str);
 
     /// Resolve the raw jinja template source for this form.
     /// - `Shell`: inline `exec` string.
@@ -392,16 +392,16 @@ impl Form {
                 {
                     return Err(FormDefinitionError::ReservedVarName(v.name.to_string()).into());
                 }
-                let ctx: HashMap<&str, &str> = self
+                let ctx: HashMap<&str, Option<&str>> = self
                     .variables
                     .iter()
-                    .map(|v| (v.name.as_str(), ""))
-                    .chain(Self::INJECTED_VARS.iter().map(|n| (*n, "")))
+                    .map(|v| (v.name.as_str(), None))
+                    .chain(Self::INJECTED_VARS.iter().map(|n| (*n, None)))
                     .collect();
                 self.render_template(&ctx).await.map(|_| ())?;
             }
             Some(vars) => {
-                let ctx = self.jinja_context(vars, 0, "", 0, "");
+                let ctx = self.jinja_context(vars, 0, "", "", "", 0, "");
                 self.render_template(&ctx).await.map(|_| ())?;
             }
         }

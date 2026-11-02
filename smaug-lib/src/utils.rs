@@ -183,7 +183,7 @@ pub fn format_french_date(date: &OffsetDateTime, with_time: bool) -> String {
 
     if with_time {
         format!(
-            "{} {} {} {} ({}h{})",
+            "{} {:0>2} {} {} ({:0>2}h{:0>2})",
             weekday,
             date.day(),
             month_name,
