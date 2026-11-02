@@ -36,7 +36,7 @@ impl FileScope {
     fn directory(self, attempt: &Attempt) -> PathBuf {
         match self {
             Self::Exports => attempt.exports_dir(),
-            Self::Logs => attempt.logs_dir(),
+            Self::Logs => attempt.outdir(),
         }
     }
 }
