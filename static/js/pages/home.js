@@ -46,6 +46,11 @@ const normalize = (value) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
+
+// Catégories métier : seules celles rendues par le serveur sont accessibles.
+// Le groupe associé est celui qui est réellement présent dans user_groups.
+const restrictedCategories = new Set(["genetique", "onco", "immunologie"]);
+
 function renderTabs() {
   groupTabs.replaceChildren();
   if (tabs.length === 0) return;
@@ -104,7 +109,7 @@ function renderForms() {
       const link = document.createElement("a");
       link.className = "run-button";
       link.href = target;
-      link.append(iconElement("play"), document.createTextNode("Lancer un run"));
+      link.append(iconElement("play"), document.createTextNode("Ouvrir le formulaire"));
       item.append(copy, link);
     } else {
       const unavailable = document.createElement("span");
@@ -124,8 +129,16 @@ function findCategoryGroup(terms) {
 }
 
 function chooseCategory(category) {
+  const restricted = restrictedCategories.has(category);
   const terms = hints[category] || [];
-  const tab = findCategoryGroup(terms);
+  const card = [...document.querySelectorAll("[data-category]")]
+    .find((element) => element.dataset.category === category);
+  const assignedGroupId = card?.dataset.groupId;
+  // Pour les catégories réservées, ne jamais deviner l'appartenance
+  // à partir du nom ou du contenu des formulaires.
+  const tab = restricted
+    ? tabs.find((item) => item.id === assignedGroupId)
+    : findCategoryGroup(terms);
   if (categoryFeedback) {
     categoryFeedback.hidden = Boolean(tab);
     categoryFeedback.textContent = tab
@@ -134,7 +147,7 @@ function chooseCategory(category) {
   }
   if (tab) {
     activeTab = tab.id;
-    const matchingTerm = terms.find((term) =>
+    const matchingTerm = restricted ? "" : terms.find((term) =>
       tab.forms.some((form) => normalize(`${form.name} ${form.description}`).includes(term))
     );
     formSearch.value = matchingTerm || "";
@@ -173,10 +186,22 @@ async function loadRecentRuns() {
   const container = document.getElementById("latest-runs-table");
   try {
     const data = await requestJson(api.listRuns({ page: 1, pageSize: 5 }));
-    renderTable(container, data, "Aucun run récent.");
+    // Adapter uniquement le vocabulaire du tableau, sans changer les données API.
+    const displayData = Array.isArray(data?.header)
+      ? {
+          ...data,
+          header: data.header.map((column) => ({
+            ...column,
+            content: /^runs?$/i.test(String(column.content ?? "").trim())
+              ? "Analyse"
+              : column.content,
+          })),
+        }
+      : data;
+    renderTable(container, displayData, "Aucune analyse récente.");
   } catch (error) {
     showError(error);
-    emptyState(container, "Impossible de charger les runs récents.");
+    emptyState(container, "Impossible de charger les analyses récentes.");
   }
 }
 
