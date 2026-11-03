@@ -3,6 +3,7 @@
 
 {% block title %}SMAUG — Tableau de bord{% endblock %}
 {% block body_class %}dashboard-page{% endblock %}
+{% block head %}<link rel="stylesheet" href="/smaug/static/css/home-dashboard.css">{% endblock %}
 
 {% block topbar_search %}
 <div class="top-search">
@@ -29,33 +30,107 @@
 </section>
 
 
-<div class="bottom-grid">
-  <section id="forms" class="panel" aria-labelledby="forms-title">
-    <div class="panel-title">
-      <div>{{ ui.icon("flask", "section-icon") }}<h2 id="forms-title">Lancer une analyse</h2></div>
-      <span id="availableCount" class="soft-badge"></span>
+{# Les seules sources de droits sont les groupes envoyés par Rust.
+   Ces associations par nom sont une convention de présentation, a confirmer
+   avec les noms de groupes effectivement configures par l'administrateur. #}
+{% set available = namespace(genetique=none, onco=none, immunologie=none) %}
+{% for group in user_groups %}
+  {% set group_name = group.name | lower | replace('é', 'e') | replace('è', 'e') | replace('ê', 'e') | replace('-', ' ') | replace('_', ' ') | trim %}
+  {% if group_name in ['genetique constitutionnelle', 'genetique constit'] %}
+    {% set available.genetique = group.id %}
+  {% elif group_name in ['onco hematologie', 'onco hemato'] %}
+    {% set available.onco = group.id %}
+  {% elif group_name in ['immunologie', 'immuno'] %}
+    {% set available.immunologie = group.id %}
+  {% endif %}
+{% endfor %}
+<section id="analysis-categories" class="section" aria-labelledby="analysis-categories-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="analysis-categories-title">Lancer une analyse</h2>
+      <p>Choisissez un domaine pour accéder aux formulaires autorisés.</p>
     </div>
-    <div class="filterline">
-      <label class="panel-search">
-        {{ ui.icon("search") }}
-        <input id="formSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire…">
-      </label>
-      <button type="button" id="resetFilters" class="filter-clear" hidden>Réinitialiser ×</button>
-    </div>
-    <div id="groupTabs" class="form-tabs" role="tablist" aria-label="Groupes autorisés"></div>
-    <div id="formList" class="form-list" aria-live="polite">
-      <p class="empty-state">Chargement des formulaires…</p>
-    </div>
-    <p id="no-user-group" class="panel-footnote" hidden>Vous n’appartenez à aucun groupe. Veuillez contacter votre administrateur système.</p>
-  </section>
+  </div>
+  <div class="module-grid" aria-label="Domaines d'analyses">
+    <button type="button" class="module-card blue" data-category="demultiplexage">
+      <span class="module-icon">{{ ui.icon("nodes") }}</span>
+      <span><strong>Démultiplexage</strong><p>Préparation des données de séquençage</p></span>
+      {{ ui.icon("arrow", "module-arrow") }}
+    </button>
+{% if available.genetique is not none %}
+    <button type="button" class="module-card violet" data-category="genetique" data-group-id="{{ available.genetique }}">
+      <span class="module-icon">{{ ui.icon("dna") }}</span>
+      <span><strong>Génétique constitutionnelle</strong><p>Analyses des variants germinaux</p></span>
+      {{ ui.icon("arrow", "module-arrow") }}
+    </button>
+{% endif %}
+{% if available.onco is not none %}
+    <button type="button" class="module-card coral" data-category="onco" data-group-id="{{ available.onco }}">
+      <span class="module-icon">{{ ui.icon("flask") }}</span>
+      <span><strong>Onco-hématologie</strong><p>Analyses des variants somatiques</p></span>
+      {{ ui.icon("arrow", "module-arrow") }}
+    </button>
+{% endif %}
+{% if available.immunologie is not none %}
+    <button type="button" class="module-card mint" data-category="immunologie" data-group-id="{{ available.immunologie }}">
+      <span class="module-icon">{{ ui.icon("antibody") }}</span>
+      <span><strong>Immunologie</strong><p>Analyses immunogénétiques</p></span>
+      {{ ui.icon("arrow", "module-arrow") }}
+    </button>
+{% endif %}
+    <button type="button" class="module-card slate" data-category="autres">
+      <span class="module-icon">{{ ui.icon("sliders") }}</span>
+      <span><strong>Autres outils</strong><p>Qualité, annotation et utilitaires</p></span>
+      {{ ui.icon("arrow", "module-arrow") }}
+    </button>
+  </div>
+  <p id="categoryFeedback" class="panel-footnote" role="status" hidden></p>
+</section>
 
-  <section id="runs" class="panel" aria-labelledby="runs-title">
-    <div class="panel-title">
-      <div>{{ ui.icon("chart", "section-icon") }}<h2 id="runs-title">Runs récents</h2></div>
-      <a href="/smaug/show/runs" class="text-link">Voir tous mes runs {{ ui.icon("arrow") }}</a>
+
+<div class="dashboard-workspace" aria-label="Accès direct et suivi des analyses">
+<section id="forms" class="panel dashboard-forms" aria-labelledby="forms-title">
+  <div class="panel-title">
+    <div>{{ ui.icon("flask", "section-icon") }}<h2 id="forms-title">Accès direct aux formulaires</h2></div>
+    <span id="availableCount" class="soft-badge"></span>
+  </div>
+  <p class="dashboard-forms__intro">Retrouvez et ouvrez les formulaires auxquels vous avez accès.</p>
+  <div class="filterline">
+    <label class="panel-search">
+      {{ ui.icon("search") }}
+      <input id="formSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire…">
+    </label>
+    <button type="button" id="resetFilters" class="filter-clear" hidden>Réinitialiser ×</button>
+  </div>
+  <div id="groupTabs" class="form-tabs" role="tablist" aria-label="Groupes autorisés"></div>
+  <div id="formList" class="form-list" aria-live="polite">
+    <p class="empty-state">Chargement des formulaires…</p>
+  </div>
+  <p id="no-user-group" class="panel-footnote" hidden>Vous n’appartenez à aucun groupe. Veuillez contacter votre administrateur système.</p>
+</section>
+
+<section id="runs" class="analysis-tracking" aria-labelledby="runs-title">
+  <div class="analysis-tracking__intro">
+    <div class="analysis-tracking__heading">
+      <div class="analysis-tracking__icon" aria-hidden="true">{{ ui.icon("chart") }}</div>
+      <h2 id="runs-title">Suivi des analyses</h2>
     </div>
-    <div id="latest-runs-table" class="table-scroll" aria-live="polite"></div>
-  </section>
+    <p>Retrouvez vos analyses, leur avancement et leurs résultats.</p>
+    <a href="/smaug/show/runs" class="analysis-tracking__link">
+      Toutes mes analyses {{ ui.icon("arrow") }}
+    </a>
+  </div>
+  <div class="analysis-tracking__recent">
+    <div class="analysis-tracking__recent-heading">
+      <h3>Dernières analyses</h3>
+      <span class="analysis-tracking__hint">5 dernières entrées</span>
+    </div>
+    <div id="latest-runs-table" class="table-scroll" aria-live="polite">
+      <p class="empty-state">Chargement de vos analyses…</p>
+    </div>
+  </div>
+</section>
+
 </div>
 
 <footer class="footer">
