@@ -8,7 +8,7 @@
 {% block topbar_search %}
 <div class="top-search">
   {{ ui.icon("search") }}
-  <input id="globalSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire ou une analyse…">
+  <input id="globalSearch" aria-label="Rechercher une analyse" placeholder="Rechercher une analyse…">
 </div>
 {% endblock %}
 
@@ -44,93 +44,92 @@
     {% set available.immunologie = group.id %}
   {% endif %}
 {% endfor %}
-<section id="analysis-categories" class="section" aria-labelledby="analysis-categories-title">
-  <div class="section-heading">
-    <div>
+
+<div class="dashboard-workspace">
+  <section id="analysis-categories" class="section domain-launch-panel" aria-labelledby="analysis-categories-title">
+    <div class="domain-launch-panel__intro">
       <h2 id="analysis-categories-title">Lancer une analyse</h2>
-      <p>Choisissez un domaine pour accéder aux formulaires autorisés.</p>
+      <p>Choisissez un domaine pour afficher ses analyses.</p>
     </div>
-  </div>
-  <div class="module-grid" aria-label="Domaines d'analyses">
-    <button type="button" class="module-card blue" data-category="demultiplexage">
-      <span class="module-icon">{{ ui.icon("nodes") }}</span>
-      <span><strong>Démultiplexage</strong><p>Préparation des données de séquençage</p></span>
-      {{ ui.icon("arrow", "module-arrow") }}
-    </button>
+    <div class="module-grid domain-grid" aria-label="Domaines d'analyses">
+      <button type="button" class="module-card blue" data-category="demultiplexage" aria-expanded="false" aria-controls="domain-expansion">
+        <span class="module-icon">{{ ui.icon("nodes") }}</span>
+        <span class="domain-card__label"><strong>Démultiplexage</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
 {% if available.genetique is not none %}
-    <button type="button" class="module-card violet" data-category="genetique" data-group-id="{{ available.genetique }}">
-      <span class="module-icon">{{ ui.icon("dna") }}</span>
-      <span><strong>Génétique constitutionnelle</strong><p>Analyses des variants germinaux</p></span>
-      {{ ui.icon("arrow", "module-arrow") }}
-    </button>
+      <button type="button" class="module-card violet" data-category="genetique" data-group-id="{{ available.genetique }}" aria-expanded="false" aria-controls="domain-expansion">
+        <span class="module-icon">{{ ui.icon("dna") }}</span>
+        <span class="domain-card__label"><strong>Génétique constitutionnelle</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
 {% endif %}
 {% if available.onco is not none %}
-    <button type="button" class="module-card coral" data-category="onco" data-group-id="{{ available.onco }}">
-      <span class="module-icon">{{ ui.icon("flask") }}</span>
-      <span><strong>Onco-hématologie</strong><p>Analyses des variants somatiques</p></span>
-      {{ ui.icon("arrow", "module-arrow") }}
-    </button>
+      <button type="button" class="module-card coral" data-category="onco" data-group-id="{{ available.onco }}" aria-expanded="false" aria-controls="domain-expansion">
+        <span class="module-icon">{{ ui.icon("flask") }}</span>
+        <span class="domain-card__label"><strong>Onco-hématologie</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
 {% endif %}
 {% if available.immunologie is not none %}
-    <button type="button" class="module-card mint" data-category="immunologie" data-group-id="{{ available.immunologie }}">
-      <span class="module-icon">{{ ui.icon("antibody") }}</span>
-      <span><strong>Immunologie</strong><p>Analyses immunogénétiques</p></span>
-      {{ ui.icon("arrow", "module-arrow") }}
-    </button>
+      <button type="button" class="module-card mint" data-category="immunologie" data-group-id="{{ available.immunologie }}" aria-expanded="false" aria-controls="domain-expansion">
+        <span class="module-icon">{{ ui.icon("antibody") }}</span>
+        <span class="domain-card__label"><strong>Immunologie</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
 {% endif %}
-    <button type="button" class="module-card slate" data-category="autres">
-      <span class="module-icon">{{ ui.icon("sliders") }}</span>
-      <span><strong>Autres outils</strong><p>Qualité, annotation et utilitaires</p></span>
-      {{ ui.icon("arrow", "module-arrow") }}
-    </button>
-  </div>
-  <p id="categoryFeedback" class="panel-footnote" role="status" hidden></p>
-</section>
-
-
-<div class="dashboard-workspace" aria-label="Accès direct et suivi des analyses">
-<section id="forms" class="panel dashboard-forms" aria-labelledby="forms-title">
-  <div class="panel-title">
-    <div>{{ ui.icon("flask", "section-icon") }}<h2 id="forms-title">Accès direct aux formulaires</h2></div>
-    <span id="availableCount" class="soft-badge"></span>
-  </div>
-  <p class="dashboard-forms__intro">Retrouvez et ouvrez les formulaires auxquels vous avez accès.</p>
-  <div class="filterline">
-    <label class="panel-search">
-      {{ ui.icon("search") }}
-      <input id="formSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire…">
-    </label>
-    <button type="button" id="resetFilters" class="filter-clear" hidden>Réinitialiser ×</button>
-  </div>
-  <div id="groupTabs" class="form-tabs" role="tablist" aria-label="Groupes autorisés"></div>
-  <div id="formList" class="form-list" aria-live="polite">
-    <p class="empty-state">Chargement des formulaires…</p>
-  </div>
-  <p id="no-user-group" class="panel-footnote" hidden>Vous n’appartenez à aucun groupe. Veuillez contacter votre administrateur système.</p>
-</section>
-
-<section id="runs" class="analysis-tracking" aria-labelledby="runs-title">
-  <div class="analysis-tracking__intro">
-    <div class="analysis-tracking__heading">
-      <div class="analysis-tracking__icon" aria-hidden="true">{{ ui.icon("chart") }}</div>
-      <h2 id="runs-title">Suivi des analyses</h2>
     </div>
-    <p>Retrouvez vos analyses, leur avancement et leurs résultats.</p>
+    <section id="domain-expansion" class="domain-expansion" aria-labelledby="expanded-domain-title">
+      <div id="domain-idle" class="domain-expansion__idle">
+        <div class="domain-expansion__idle-icon" aria-hidden="true">{{ ui.icon("file") }}</div>
+        <strong>Vos analyses, en un clic</strong>
+        <p>Sélectionnez un domaine ci-dessus pour retrouver les formulaires correspondants.</p>
+      </div>
+      <div id="domain-content" class="domain-expansion__content" hidden>
+        <div class="domain-expansion__head">
+          <div class="domain-expansion__titleline">
+            <h3 id="expanded-domain-title">Analyses du domaine</h3>
+            <span id="availableCount" class="soft-badge">…</span>
+          </div>
+          <button type="button" id="closeDomain" class="domain-expansion__close" aria-label="Fermer le domaine sélectionné">Fermer ×</button>
+        </div>
+        <div class="domain-expansion__search-row">
+          <label class="panel-search domain-expansion__search">
+            {{ ui.icon("search") }}
+            <input id="formSearch" aria-label="Rechercher une analyse" placeholder="Rechercher une analyse…">
+          </label>
+          <button type="button" id="resetFilters" class="filter-clear" hidden>Effacer</button>
+        </div>
+        <div id="formList" class="domain-expansion__list" aria-live="polite">
+          <p class="empty-state">Chargement de vos analyses…</p>
+        </div>
+        <p id="no-user-group" class="panel-footnote" hidden>Vous n'appartenez à aucun groupe. Contactez votre administrateur pour accéder aux analyses.</p>
+      </div>
+      <button type="button" id="showAllForms" class="domain-all-button" aria-expanded="false" aria-controls="domain-expansion">Toutes les analyses disponibles {{ ui.icon("arrow") }}</button>
+    </section>
+  </section>
+
+  <section id="runs" class="analysis-tracking" aria-labelledby="runs-title">
+    <div class="analysis-tracking__intro">
+      <div class="analysis-tracking__heading">
+        <div class="analysis-tracking__icon" aria-hidden="true">{{ ui.icon("chart") }}</div>
+        <h2 id="runs-title">Suivi des analyses</h2>
+      </div>
+      <p>Retrouvez vos analyses, leur avancement et leurs résultats.</p>
+    </div>
+    <div class="analysis-tracking__recent">
+      <div class="analysis-tracking__recent-heading">
+        <h3>Dernières analyses</h3>
+        <span class="analysis-tracking__hint">5 dernières entrées</span>
+      </div>
+      <div id="latest-runs-table" class="table-scroll" aria-live="polite">
+        <p class="empty-state">Chargement de vos analyses…</p>
+      </div>
+    </div>
     <a href="/smaug/show/runs" class="analysis-tracking__link">
       Toutes mes analyses {{ ui.icon("arrow") }}
     </a>
-  </div>
-  <div class="analysis-tracking__recent">
-    <div class="analysis-tracking__recent-heading">
-      <h3>Dernières analyses</h3>
-      <span class="analysis-tracking__hint">5 dernières entrées</span>
-    </div>
-    <div id="latest-runs-table" class="table-scroll" aria-live="polite">
-      <p class="empty-state">Chargement de vos analyses…</p>
-    </div>
-  </div>
-</section>
-
+  </section>
 </div>
 
 <footer class="footer">
