@@ -5,3 +5,4 @@ smaug-lib/target
 Rocket.toml
 documentation/book
 __pycache__/
+kilo.json
