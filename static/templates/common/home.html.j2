@@ -3,11 +3,12 @@
 
 {% block title %}SMAUG — Tableau de bord{% endblock %}
 {% block body_class %}dashboard-page{% endblock %}
+{% block head %}<link rel="stylesheet" href="/smaug/static/css/home-dashboard.css">{% endblock %}
 
 {% block topbar_search %}
 <div class="top-search">
   {{ ui.icon("search") }}
-  <input id="globalSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire ou une analyse…">
+  <input id="globalSearch" aria-label="Rechercher une analyse" placeholder="Rechercher une analyse…">
 </div>
 {% endblock %}
 
@@ -29,32 +30,93 @@
 </section>
 
 
-<div class="bottom-grid">
-  <section id="forms" class="panel" aria-labelledby="forms-title">
-    <div class="panel-title">
-      <div>{{ ui.icon("flask", "section-icon") }}<h2 id="forms-title">Lancer une analyse</h2></div>
-      <span id="availableCount" class="soft-badge"></span>
+{# L'autorisation vient exclusivement des groupes. Les cartes sont
+   affichées par home.js après lecture des formulaires autorisés.
+   Aucun nom de groupe n'est utilisé comme catégorie visuelle. #}
+
+<div class="dashboard-workspace">
+  <section id="analysis-categories" class="section domain-launch-panel" aria-labelledby="analysis-categories-title">
+    <div class="domain-launch-panel__intro">
+      <h2 id="analysis-categories-title">Lancer une analyse</h2>
+      <p>Choisissez un domaine pour afficher vos analyses autorisées.</p>
     </div>
-    <div class="filterline">
-      <label class="panel-search">
-        {{ ui.icon("search") }}
-        <input id="formSearch" aria-label="Rechercher un formulaire" placeholder="Rechercher un formulaire…">
-      </label>
-      <button type="button" id="resetFilters" class="filter-clear" hidden>Réinitialiser ×</button>
+    <div class="module-grid domain-grid" aria-label="Domaines d'analyses">
+      <button type="button" class="module-card blue" data-category="demultiplexage" aria-expanded="false" aria-controls="domain-expansion" hidden>
+        <span class="module-icon">{{ ui.icon("nodes") }}</span>
+        <span class="domain-card__label"><strong>Démultiplexage</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="module-card violet" data-category="genetique" aria-expanded="false" aria-controls="domain-expansion" hidden>
+        <span class="module-icon">{{ ui.icon("dna") }}</span>
+        <span class="domain-card__label"><strong>Génétique constitutionnelle</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="module-card coral" data-category="onco" aria-expanded="false" aria-controls="domain-expansion" hidden>
+        <span class="module-icon">{{ ui.icon("flask") }}</span>
+        <span class="domain-card__label"><strong>Onco-hématologie</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="module-card mint" data-category="immunologie" aria-expanded="false" aria-controls="domain-expansion" hidden>
+        <span class="module-icon">{{ ui.icon("antibody") }}</span>
+        <span class="domain-card__label"><strong>Immunologie</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="module-card blue" data-category="outils" aria-expanded="false" aria-controls="domain-expansion" hidden>
+        <span class="module-icon">{{ ui.icon("sliders") }}</span>
+        <span class="domain-card__label"><strong>Outils et autres analyses</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
     </div>
-    <div id="groupTabs" class="form-tabs" role="tablist" aria-label="Groupes autorisés"></div>
-    <div id="formList" class="form-list" aria-live="polite">
-      <p class="empty-state">Chargement des formulaires…</p>
-    </div>
-    <p id="no-user-group" class="panel-footnote" hidden>Vous n’appartenez à aucun groupe. Veuillez contacter votre administrateur système.</p>
+    <section id="domain-expansion" class="domain-expansion" aria-labelledby="expanded-domain-title">
+      <div id="domain-idle" class="domain-expansion__idle">
+        <div class="domain-expansion__idle-icon" aria-hidden="true">{{ ui.icon("file") }}</div>
+        <strong>Vos analyses, en un clic</strong>
+        <p>Sélectionnez un domaine pour retrouver les analyses auxquelles vous avez accès.</p>
+      </div>
+      <div id="domain-content" class="domain-expansion__content" hidden>
+        <div class="domain-expansion__head">
+          <div class="domain-expansion__titleline">
+            <h3 id="expanded-domain-title">Analyses du domaine</h3>
+            <span id="availableCount" class="soft-badge">…</span>
+          </div>
+          <button type="button" id="closeDomain" class="domain-expansion__close" aria-label="Fermer le domaine sélectionné">Fermer ×</button>
+        </div>
+        <div class="domain-expansion__search-row">
+          <label class="panel-search domain-expansion__search">
+            {{ ui.icon("search") }}
+            <input id="formSearch" aria-label="Rechercher une analyse" placeholder="Rechercher une analyse…">
+          </label>
+          <button type="button" id="resetFilters" class="filter-clear" hidden>Effacer</button>
+        </div>
+        <div id="formList" class="domain-expansion__list" aria-live="polite">
+          <p class="empty-state">Chargement de vos analyses…</p>
+        </div>
+        <p id="no-user-group" class="panel-footnote" hidden>Vous n'appartenez à aucun groupe. Contactez votre administrateur pour accéder aux analyses.</p>
+      </div>
+      <button type="button" id="showAllForms" class="domain-all-button" aria-expanded="false" aria-controls="domain-expansion">Toutes les analyses disponibles {{ ui.icon("arrow") }}</button>
+    </section>
   </section>
 
-  <section id="runs" class="panel" aria-labelledby="runs-title">
-    <div class="panel-title">
-      <div>{{ ui.icon("chart", "section-icon") }}<h2 id="runs-title">Runs récents</h2></div>
-      <a href="/smaug/show/runs" class="text-link">Voir tous mes runs {{ ui.icon("arrow") }}</a>
+  <section id="runs" class="analysis-tracking" aria-labelledby="runs-title">
+    <div class="analysis-tracking__intro">
+      <div class="analysis-tracking__heading">
+        <div class="analysis-tracking__icon" aria-hidden="true">{{ ui.icon("chart") }}</div>
+        <h2 id="runs-title">Suivi des analyses</h2>
+      </div>
+      <p>Retrouvez vos analyses, leur avancement et leurs résultats.</p>
     </div>
-    <div id="latest-runs-table" class="table-scroll" aria-live="polite"></div>
+    <div class="analysis-tracking__recent">
+      <div class="analysis-tracking__recent-heading">
+        <h3>Dernières analyses</h3>
+        <span class="analysis-tracking__hint">5 dernières entrées</span>
+      </div>
+      <div id="latest-runs-table" class="table-scroll" aria-live="polite">
+        <p class="empty-state">Chargement de vos analyses…</p>
+      </div>
+    </div>
+    <a href="/smaug/show/runs" class="analysis-tracking__link">
+      Toutes mes analyses {{ ui.icon("arrow") }}
+    </a>
   </section>
 </div>
 
