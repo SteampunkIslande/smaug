@@ -30,60 +30,48 @@
 </section>
 
 
-{# Les seules sources de droits sont les groupes envoyés par Rust.
-   Ces associations par nom sont une convention de présentation, a confirmer
-   avec les noms de groupes effectivement configures par l'administrateur. #}
-{% set available = namespace(genetique=none, onco=none, immunologie=none) %}
-{% for group in user_groups %}
-  {% set group_name = group.name | lower | replace('é', 'e') | replace('è', 'e') | replace('ê', 'e') | replace('-', ' ') | replace('_', ' ') | trim %}
-  {% if group_name in ['genetique constitutionnelle', 'genetique constit'] %}
-    {% set available.genetique = group.id %}
-  {% elif group_name in ['onco hematologie', 'onco hemato'] %}
-    {% set available.onco = group.id %}
-  {% elif group_name in ['immunologie', 'immuno'] %}
-    {% set available.immunologie = group.id %}
-  {% endif %}
-{% endfor %}
+{# L'autorisation vient exclusivement des groupes. Les cartes sont
+   affichées par home.js après lecture des formulaires autorisés.
+   Aucun nom de groupe n'est utilisé comme catégorie visuelle. #}
 
 <div class="dashboard-workspace">
   <section id="analysis-categories" class="section domain-launch-panel" aria-labelledby="analysis-categories-title">
     <div class="domain-launch-panel__intro">
       <h2 id="analysis-categories-title">Lancer une analyse</h2>
-      <p>Choisissez un domaine pour afficher ses analyses.</p>
+      <p>Choisissez un domaine pour afficher vos analyses autorisées.</p>
     </div>
     <div class="module-grid domain-grid" aria-label="Domaines d'analyses">
-      <button type="button" class="module-card blue" data-category="demultiplexage" aria-expanded="false" aria-controls="domain-expansion">
+      <button type="button" class="module-card blue" data-category="demultiplexage" aria-expanded="false" aria-controls="domain-expansion" hidden>
         <span class="module-icon">{{ ui.icon("nodes") }}</span>
         <span class="domain-card__label"><strong>Démultiplexage</strong></span>
         <span class="domain-card__chevron" aria-hidden="true"></span>
       </button>
-{% if available.genetique is not none %}
-      <button type="button" class="module-card violet" data-category="genetique" data-group-id="{{ available.genetique }}" aria-expanded="false" aria-controls="domain-expansion">
+      <button type="button" class="module-card violet" data-category="genetique" aria-expanded="false" aria-controls="domain-expansion" hidden>
         <span class="module-icon">{{ ui.icon("dna") }}</span>
         <span class="domain-card__label"><strong>Génétique constitutionnelle</strong></span>
         <span class="domain-card__chevron" aria-hidden="true"></span>
       </button>
-{% endif %}
-{% if available.onco is not none %}
-      <button type="button" class="module-card coral" data-category="onco" data-group-id="{{ available.onco }}" aria-expanded="false" aria-controls="domain-expansion">
+      <button type="button" class="module-card coral" data-category="onco" aria-expanded="false" aria-controls="domain-expansion" hidden>
         <span class="module-icon">{{ ui.icon("flask") }}</span>
         <span class="domain-card__label"><strong>Onco-hématologie</strong></span>
         <span class="domain-card__chevron" aria-hidden="true"></span>
       </button>
-{% endif %}
-{% if available.immunologie is not none %}
-      <button type="button" class="module-card mint" data-category="immunologie" data-group-id="{{ available.immunologie }}" aria-expanded="false" aria-controls="domain-expansion">
+      <button type="button" class="module-card mint" data-category="immunologie" aria-expanded="false" aria-controls="domain-expansion" hidden>
         <span class="module-icon">{{ ui.icon("antibody") }}</span>
         <span class="domain-card__label"><strong>Immunologie</strong></span>
         <span class="domain-card__chevron" aria-hidden="true"></span>
       </button>
-{% endif %}
+      <button type="button" class="module-card blue" data-category="outils" aria-expanded="false" aria-controls="domain-expansion" hidden>
+        <span class="module-icon">{{ ui.icon("sliders") }}</span>
+        <span class="domain-card__label"><strong>Outils et autres analyses</strong></span>
+        <span class="domain-card__chevron" aria-hidden="true"></span>
+      </button>
     </div>
     <section id="domain-expansion" class="domain-expansion" aria-labelledby="expanded-domain-title">
       <div id="domain-idle" class="domain-expansion__idle">
         <div class="domain-expansion__idle-icon" aria-hidden="true">{{ ui.icon("file") }}</div>
         <strong>Vos analyses, en un clic</strong>
-        <p>Sélectionnez un domaine ci-dessus pour retrouver les formulaires correspondants.</p>
+        <p>Sélectionnez un domaine pour retrouver les analyses auxquelles vous avez accès.</p>
       </div>
       <div id="domain-content" class="domain-expansion__content" hidden>
         <div class="domain-expansion__head">
