@@ -24,7 +24,8 @@ const noGroup = document.getElementById("no-user-group");
 const count = document.getElementById("availableCount");
 const domainCards = [...document.querySelectorAll("[data-category]")];
 
-// Les listes restent produites par l'API de SMAUG (droits côté serveur).
+// Les formulaires proviennent des groupes de l'utilisateur via l'API SMAUG.
+// Le classement en modules n'accorde aucun droit nouveau.
 const tabs = groups.map((group) => ({
   id: String(group.id), name: group.name, listKey: "with_group", forms: [],
 }));
@@ -34,7 +35,49 @@ if (isAdmin) {
 
 const normalize = (value) => String(value ?? "")
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const demultiplexTerms = ["demultiplex", "demux", "bcl"];
+// Le module sert UNIQUEMENT au classement visuel, jamais aux autorisations.
+// Pour lever une ambiguïté, renseigner l'identité stable "branche:chemin" ici.
+// Les droits restent dans les groupes associés aux formulaires dans SMAUG.
+const FORM_MODULE_OVERRIDES = Object.freeze({
+  // "main:.forms/mon_formulaire.yaml": "genetique",
+});
+
+// En attendant un éventuel champ 'module' optionnel dans le référentiel YAML,
+// cette correspondance explicite + règles prudentes évite de changer le backend.
+// Un formulaire non reconnu reste visible dans "Outils et autres analyses".
+const MODULE_RULES = [
+  { id: "demultiplexage", pattern: /demultiplex|demux|demul|bcl[ _-]?convert/ },
+  { id: "immunologie", pattern: /immunolog|immuno|typ[ae]ge[ _-]?hla|hla|tcr|bcr/ },
+  { id: "onco", pattern: /onco|somatiqu|hematolog|hemato|leucemi|lymphom|cancer/ },
+  { id: "genetique", pattern: /genetiqu|constitutionnel|germinal|panel|nanopore|wes|wgs|exom|genom|variant/ },
+  { id: "outils", pattern: /transfert|copie|copy|rsync|fichier|controle[ _-]?qualite|qc|fastq/ },
+];
+function moduleForForm(form) {
+  const formId = `${form.branch ?? ""}:${form.file_path ?? ""}`;
+  const explicit = FORM_MODULE_OVERRIDES[formId];
+  if (explicit && domainCards.some((card) => card.dataset.category === explicit)) return explicit;
+  // Priorité aux noms et chemins. La description n'est qu'un dernier recours.
+  const mainText = normalize(`${form.name ?? ""} ${form.file_path ?? ""}`);
+  const descText = normalize(form.description ?? "");
+  for (const text of [mainText, descText]) {
+    const matching = MODULE_RULES.find((rule) => rule.pattern.test(text));
+    if (matching) return matching.id;
+  }
+  return "outils";
+}
+
+function syncDomainCards() {
+  const visible = new Set(accessibleForms().map(({ form }) => moduleForForm(form)));
+  for (const card of domainCards) card.hidden = !visible.has(card.dataset.category);
+  if (activeDomain && activeDomain !== "all" && !visible.has(activeDomain)) setActiveDomain(null);
+  const hint = domainIdle?.querySelector("p");
+  if (hint && visible.size === 0) {
+    hint.textContent = failedGroups
+      ? "Impossible de charger certains groupes. Réessayez ou contactez votre administrateur."
+      : "Aucune analyse ne vous est attribuée. Contactez votre administrateur.";
+  }
+}
+
 let activeDomain = null; // À l’ouverture, aucune liste ne masque le suivi des analyses.
 let failedGroups = 0;
 
@@ -54,7 +97,7 @@ function setupDomainDisclosure() {
 }
 
 function setActiveDomain(domain) {
-  const valid = domain === "all" || domainCards.some((card) => card.dataset.category === domain);
+  const valid = domain === "all" || domainCards.some((card) => !card.hidden && card.dataset.category === domain);
   const nextDomain = valid ? domain : null;
   if (nextDomain !== activeDomain) {
     // Ne pas conserver un ancien filtre texte lorsqu'on change de domaine.
@@ -103,19 +146,7 @@ function accessibleForms() {
 }
 
 function inDomain(entry) {
-  if (activeDomain === "all") return true;
-  const card = domainCards.find((element) => element.dataset.category === activeDomain);
-  if (!card) return true;
-  if (card.dataset.groupId) return entry.groupIds.has(card.dataset.groupId);
-  // Démultiplexage : domaine commun à l'affichage, mais formulaires filtrés
-  // sur les groupes réellement accessibles (aucun droit supplémentaire).
-  if (activeDomain === "demultiplexage") {
-    const groupLabelMatch = tabs.some((tab) => entry.groupIds.has(tab.id) &&
-      demultiplexTerms.some((term) => normalize(tab.name).includes(term)));
-    const formText = normalize(`${entry.form.name ?? ""} ${entry.form.description ?? ""}`);
-    return groupLabelMatch || demultiplexTerms.some((term) => formText.includes(term));
-  }
-  return false;
+  return activeDomain === "all" || moduleForForm(entry.form) === activeDomain;
 }
 
 function renderForms() {
@@ -183,6 +214,7 @@ async function loadForms() {
       showMessage("error", `Impossible de charger les analyses du groupe « ${tabs[index].name} ». `);
     }
   });
+  syncDomainCards();
   renderForms();
 }
 
